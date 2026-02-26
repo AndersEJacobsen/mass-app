@@ -1,6 +1,6 @@
 package io.music_assistant.client.ui.compose.item
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,18 +12,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.AddToQueue
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAddCircle
 import androidx.compose.material.icons.filled.QueuePlayNext
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SplitButtonDefaults.LeadingButton
+import androidx.compose.material3.SplitButtonDefaults.TrailingButton
+import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,18 +62,41 @@ import io.music_assistant.client.ui.compose.common.viewmodel.ActionsViewModel
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ItemHeader(
     item: AppMediaItem,
     serverUrl: String? = null,
+    isRowMode: Boolean = true,
     onBack: () -> Unit = {},
     onPlayClick: (QueueOption, Boolean) -> Unit = { _, _ -> },
     libraryAction: ActionsViewModel.LibraryActions? = null,
-    playlistActions: ActionsViewModel.PlaylistActions? = null
+    playlistActions: ActionsViewModel.PlaylistActions? = null,
+    onToggleViewMode: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+            }
+
+            OverflowMenu(
+                options = listOf(
+                    OverflowMenuOption(
+                        title = "Toggle view mode",
+                        icon = if (isRowMode) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
+                        onClick = onToggleViewMode
+                    )
+                )
+            ) { onClick ->
+                IconButton(onClick = onClick) {
+                    Icon(imageVector = Icons.Default.MoreVert, null)
+                }
+            }
         }
 
         Column(
@@ -111,21 +140,37 @@ fun ItemHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 16.dp)
             ) {
-                Button(
-                    modifier = Modifier.semantics { contentDescription = "Play now" },
-                    onClick = { onPlayClick(QueueOption.REPLACE, false) }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                        Text(modifier = Modifier.padding(start = 8.dp), text = "Play")
+                SplitButtonLayout(
+                    leadingButton = {
+                        LeadingButton(
+                            modifier = Modifier.semantics { contentDescription = "Play now" },
+                            onClick = { onPlayClick(QueueOption.REPLACE, false) }) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null
+                                )
+                                Text(modifier = Modifier.padding(start = 8.dp), text = "Play")
+                            }
+                        }
+                    },
+                    trailingButton = {
+                        ItemOverflowMenu(
+                            item = item,
+                            onPlayClick = onPlayClick,
+                            libraryActions = libraryAction,
+                            playlistActions = playlistActions
+                        ) { onClick ->
+                            TrailingButton(
+                                onClick = onClick
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ExpandMore,
+                                    contentDescription = null
+                                )
+                            }
+                        }
                     }
-                }
-
-                ItemOverflowMenu(
-                    item = item,
-                    modifier = Modifier.padding(start = 4.dp),
-                    onPlayClick = onPlayClick,
-                    libraryActions = libraryAction,
-                    playlistActions = playlistActions
                 )
             }
         }
@@ -135,10 +180,10 @@ fun ItemHeader(
 @Composable
 private fun ItemOverflowMenu(
     item: AppMediaItem,
-    modifier: Modifier,
     onPlayClick: (QueueOption, Boolean) -> Unit,
     libraryActions: ActionsViewModel.LibraryActions?,
-    playlistActions: ActionsViewModel.PlaylistActions?
+    playlistActions: ActionsViewModel.PlaylistActions?,
+    button: @Composable (() -> Unit) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
@@ -146,14 +191,6 @@ private fun ItemOverflowMenu(
     var isLoadingPlaylists by remember { mutableStateOf(false) }
 
     OverflowMenu(
-        modifier = modifier,
-        buttonContent = { onClick ->
-            Icon(
-                modifier = Modifier.clickable { onClick() },
-                imageVector = Icons.Default.ExpandMore,
-                contentDescription = null
-            )
-        },
         options = buildList {
             add(
                 OverflowMenuOption(
@@ -221,7 +258,8 @@ private fun ItemOverflowMenu(
                         }
                     })
             }
-        }
+        },
+        buttonContent = button
     )
 
     if (showPlaylistDialog) {
@@ -279,7 +317,7 @@ private fun ItemOverflowMenu(
 @Preview
 @Composable
 private fun Preview(item: AppMediaItem.Album = AppMediaItemFixtures.album()) {
-    ItemHeader(item)
+    ItemHeader(item,)
 }
 
 @Preview
