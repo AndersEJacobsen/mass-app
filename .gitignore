@@ -48,3 +48,5 @@ output.json
 #NDK
 obj/
 .externalNativeBuild
+composeApp/keystore.properties
+upload-keystore.jks
