@@ -1,17 +1,18 @@
 package io.music_assistant.client.ui.compose.item
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.music_assistant.client.data.model.client.AppMediaItemFixtures
 import io.music_assistant.client.data.model.server.QueueOption
 import io.music_assistant.client.ui.compose.common.DataState
+import io.music_assistant.client.ui.compose.support.inScrollable
+import io.music_assistant.client.utils.support.MockFunction0
+import io.music_assistant.client.utils.support.MockFunction2
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,9 +42,11 @@ class ItemDetailsTest {
             )
         }
 
-        composeTestRule.onAllNodes(hasText(artist.name)).assertCountEquals(3)
-        composeTestRule.onNodeWithText(albums[0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(albums[1].name).assertIsDisplayed()
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(artist.name)).assertIsDisplayed()
+            onNode(hasText(albums[0].name)).assertIsDisplayed()
+            onNode(hasText(albums[1].name)).assertIsDisplayed()
+        }
     }
 
     @Test
@@ -62,10 +65,32 @@ class ItemDetailsTest {
             )
         }
 
-        composeTestRule.onNodeWithText(album.name).assertIsDisplayed()
-        composeTestRule.onAllNodes(hasText(artist.name)).assertCountEquals(3)
-        composeTestRule.onNodeWithText(tracks[0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(tracks[1].name).assertIsDisplayed()
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(album.name)).assertIsDisplayed()
+            onNode(hasText(artist.name)).assertIsDisplayed()
+            onNode(hasText(tracks[0].name)).assertIsDisplayed()
+            onNode(hasText(tracks[1].name)).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `displays album version`() {
+        val artist = AppMediaItemFixtures.artist()
+        val album = AppMediaItemFixtures.album(artist = artist, version = "Best Version")
+
+        composeTestRule.setContent {
+            ItemDetails(
+                state = ItemDetailsViewModel.State(
+                    itemState = DataState.Data(album),
+                    albumsState = DataState.NoData(),
+                    playableItemsState = DataState.Data(emptyList())
+                )
+            )
+        }
+
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(album.version!!)).assertIsDisplayed()
+        }
     }
 
     @Test
@@ -83,11 +108,13 @@ class ItemDetailsTest {
             )
         }
 
-        composeTestRule.onNodeWithText(playlist.name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(tracks[0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(tracks[0].artists!![0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(tracks[1].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(tracks[1].artists!![0].name).assertIsDisplayed()
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(playlist.name)).assertIsDisplayed()
+            onNode(hasText(tracks[0].name)).assertIsDisplayed()
+            onNode(hasText(tracks[0].artists!![0].name)).assertIsDisplayed()
+            onNode(hasText(tracks[1].name)).assertIsDisplayed()
+            onNode(hasText(tracks[1].artists!![0].name)).assertIsDisplayed()
+        }
     }
 
     @Test
@@ -106,9 +133,11 @@ class ItemDetailsTest {
             )
         }
 
-        composeTestRule.onNodeWithText(podcast.name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(episodes[0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(episodes[1].name).assertIsDisplayed()
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(podcast.name)).assertIsDisplayed()
+            onNode(hasText(episodes[0].name)).assertIsDisplayed()
+            onNode(hasText(episodes[1].name)).assertIsDisplayed()
+        }
     }
 
     @Test
@@ -125,20 +154,15 @@ class ItemDetailsTest {
             )
         }
 
-        composeTestRule.onNodeWithText(audiobook.name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(audiobook.chapters!![0].name).assertIsDisplayed()
-        composeTestRule.onNodeWithText(audiobook.chapters[1].name).assertIsDisplayed()
+        composeTestRule.inScrollable("LazyVerticalGrid") {
+            onNode(hasText(audiobook.name)).assertIsDisplayed()
+            onNode(hasText(audiobook.chapters!![0].name)).assertIsDisplayed()
+            onNode(hasText(audiobook.chapters[1].name)).assertIsDisplayed()
+        }
     }
 
     @Test
     fun `can play any item`() {
-        var calledQueueOption: QueueOption?
-        var calledRadio: Boolean?
-        val onPlayClick: (QueueOption, Boolean) -> Unit = { queueOption, radio ->
-            calledQueueOption = queueOption
-            calledRadio = radio
-        }
-
         val state = mutableStateOf(
             ItemDetailsViewModel.State(
                 itemState = DataState.Loading(),
@@ -146,6 +170,8 @@ class ItemDetailsTest {
                 playableItemsState = DataState.Loading()
             )
         )
+
+        val onPlayClick = MockFunction2<QueueOption, Boolean>()
 
         composeTestRule.setContent {
             ItemDetails(
@@ -161,8 +187,7 @@ class ItemDetailsTest {
             AppMediaItemFixtures.podcast(),
             AppMediaItemFixtures.audiobook()
         ).forEach {
-            calledQueueOption = null
-            calledRadio = null
+            onPlayClick.reset()
 
             state.value = ItemDetailsViewModel.State(
                 itemState = DataState.Data(it),
@@ -170,19 +195,17 @@ class ItemDetailsTest {
                 playableItemsState = DataState.NoData()
             )
 
-            composeTestRule.onNodeWithContentDescription("Play now").performClick()
-            assertEquals(calledQueueOption, QueueOption.REPLACE)
-            assertEquals(calledRadio, false)
+            composeTestRule.inScrollable("LazyVerticalGrid") {
+                onNode(hasContentDescription("Play now")).performClick()
+                assertEquals(onPlayClick.arg1, QueueOption.REPLACE)
+                assertEquals(onPlayClick.arg2, false)
+            }
         }
     }
 
     @Test
     fun `can return from any item`() {
-        var onBackCalled = false
-        val onBack: () -> Unit = {
-            onBackCalled = true
-        }
-
+        val onBack = MockFunction0()
         val state = mutableStateOf(
             ItemDetailsViewModel.State(
                 itemState = DataState.Loading(),
@@ -205,7 +228,7 @@ class ItemDetailsTest {
             AppMediaItemFixtures.podcast(),
             AppMediaItemFixtures.audiobook()
         ).forEach {
-            onBackCalled = false
+            onBack.reset()
 
             state.value = ItemDetailsViewModel.State(
                 itemState = DataState.Data(it),
@@ -213,8 +236,10 @@ class ItemDetailsTest {
                 playableItemsState = DataState.NoData()
             )
 
-            composeTestRule.onNodeWithContentDescription("Back").performClick()
-            assertEquals(onBackCalled, true)
+            composeTestRule.inScrollable("LazyVerticalGrid") {
+                onNode(hasContentDescription("Back")).performClick()
+                assertEquals(onBack.wasCalled, true)
+            }
         }
     }
 }

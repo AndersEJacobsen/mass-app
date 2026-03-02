@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -223,7 +224,7 @@ private fun ItemChildren(
                 }
 
                 LazyVerticalGrid(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().testTag("LazyVerticalGrid"),
                     columns = GridCells.Adaptive(minSize = 96.dp),
                     contentPadding = PaddingValues(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -235,10 +236,11 @@ private fun ItemChildren(
                             serverUrl = serverUrl,
                             isRowMode = isRowMode,
                             onBack = onBack,
-                            onPlayClick = onPlayItemClick,
                             libraryAction = libraryActions,
                             playlistActions = playlistActions,
-                            onToggleViewMode = onToggleViewMode
+                            onToggleViewMode = onToggleViewMode,
+                            providerIconFetcher = providerIconFetcher,
+                            onPlayClick = onPlayItemClick
                         )
                     }
 
@@ -290,7 +292,7 @@ private fun ItemChildren(
                         val chapters = item.chapters
                         if (!chapters.isNullOrEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
-                                SectionHeader("Chapters",)
+                                SectionHeader("Chapters")
                             }
                             chapters.forEach { chapter ->
                                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -392,7 +394,10 @@ private fun ItemChildren(
 
 @Composable
 private fun SectionHeader(title: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
