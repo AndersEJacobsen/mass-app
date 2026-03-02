@@ -33,8 +33,8 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION_NAME=$(grep 'versionName' composeApp/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
-          VERSION_CODE=$(grep 'versionCode' composeApp/build.gradle.kts | sed 's/[^0-9]*//g')
+          VERSION_NAME=$(grep 'versionName' androidApp/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' androidApp/build.gradle.kts | sed 's/[^0-9]*//g')
           echo "name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
           echo "tag=android-v${VERSION_NAME}" >> $GITHUB_OUTPUT
@@ -62,8 +62,8 @@ jobs:
 
       - name: Restore release keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > composeApp/upload-keystore.jks
-          cat > composeApp/keystore.properties <<EOF
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > androidApp/upload-keystore.jks
+          cat > androidApp/keystore.properties <<EOF
           storeFile=upload-keystore.jks
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
@@ -71,7 +71,7 @@ jobs:
           EOF
 
       - name: Build release AAB
-        run: ./gradlew :composeApp:bundleRelease
+        run: ./gradlew :androidApp:bundleRelease
 
 #      - name: Upload to Google Play (internal testing)
 #        uses: r0adkll/upload-google-play@v1
@@ -122,10 +122,10 @@ jobs:
           git fetch origin dev
           git checkout -b "${{ steps.next.outputs.branch }}" origin/dev
 
-          sed -i "s/versionCode = ${{ steps.version.outputs.code }}/versionCode = ${{ steps.next.outputs.code }}/" composeApp/build.gradle.kts
-          sed -i "s/versionName = \"${{ steps.version.outputs.name }}\"/versionName = \"${{ steps.next.outputs.version }}\"/" composeApp/build.gradle.kts
+          sed -i "s/versionCode = ${{ steps.version.outputs.code }}/versionCode = ${{ steps.next.outputs.code }}/" androidApp/build.gradle.kts
+          sed -i "s/versionName = \"${{ steps.version.outputs.name }}\"/versionName = \"${{ steps.next.outputs.version }}\"/" androidApp/build.gradle.kts
 
-          git add composeApp/build.gradle.kts
+          git add androidApp/build.gradle.kts
           git commit -m "chore: bump Android version to ${{ steps.next.outputs.version }} (${{ steps.next.outputs.code }})"
           git push origin "${{ steps.next.outputs.branch }}"
 

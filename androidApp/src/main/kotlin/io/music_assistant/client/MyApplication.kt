@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import io.music_assistant.client.di.androidModule
+import io.music_assistant.client.di.appModule
 import io.music_assistant.client.di.cleanupSingletons
 import io.music_assistant.client.di.initKoin
 import io.music_assistant.client.services.MediaNotificationManager
@@ -14,7 +15,7 @@ import org.koin.core.context.stopKoin
 class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        initKoin(androidModule()) {
+        initKoin(androidModule(), appModule()) {
             androidContext(this@MyApplication)
         }
         createNotificationChannel(this)

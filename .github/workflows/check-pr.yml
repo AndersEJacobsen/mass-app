@@ -25,8 +25,8 @@ jobs:
 
       - name: Restore release keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > composeApp/upload-keystore.jks
-          cat > composeApp/keystore.properties <<EOF
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > androidApp/upload-keystore.jks
+          cat > androidApp/keystore.properties <<EOF
           storeFile=upload-keystore.jks
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
@@ -34,10 +34,10 @@ jobs:
           EOF
 
       - name: Run tests
-        run: ./gradlew testDebug
+        run: ./gradlew :androidApp:testDebug
 
       - name: Run lint
-        run: ./gradlew lintDebug
+        run: ./gradlew :androidApp:lintDebug
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew :androidApp:assembleDebug
