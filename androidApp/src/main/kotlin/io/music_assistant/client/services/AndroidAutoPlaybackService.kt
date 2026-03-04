@@ -56,7 +56,7 @@ class AndroidAutoPlaybackService : MediaBrowserServiceCompat() {
     private val mediaNotificationData = currentPlayerData.filterNotNull()
         .map {
             MediaNotificationData.from(
-                (dataSource.apiClient.sessionState.value as? SessionState.Connected)?.serverInfo?.baseUrl,
+                dataSource.apiClient.serverBaseUrl.value,
                 it,
                 false
             )
@@ -86,7 +86,7 @@ class AndroidAutoPlaybackService : MediaBrowserServiceCompat() {
                     is DataState.Data -> {
                         when (val queueItems = queueData.data.items) {
                             is DataState.Data -> {
-                                val baseUrl = (dataSource.apiClient.sessionState.value as? SessionState.Connected)?.serverInfo?.baseUrl
+                                val baseUrl = dataSource.apiClient.serverBaseUrl.value
                                 mediaSessionHelper.updateQueue(queueItems.data.map { queueTrack ->
                                     QueueItem(
                                         (queueTrack.track as AppMediaItem).toMediaDescription(baseUrl, defaultIconUri),
@@ -123,6 +123,14 @@ class AndroidAutoPlaybackService : MediaBrowserServiceCompat() {
                             extras,
                             playerData.queueInfo?.id ?: playerData.player.id
                         )
+                    }
+                }
+            }
+
+            override fun onPlayFromSearch(query: String?, extras: Bundle?) {
+                currentPlayerData.value?.let { playerData ->
+                    query?.takeIf { it.isNotBlank() }?.let { q ->
+                        library.searchAndPlay(q, playerData.queueInfo?.id ?: playerData.player.id)
                     }
                 }
             }
