@@ -5,7 +5,6 @@ package io.music_assistant.client.ui.compose.search
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,14 +25,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.capitalize
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.dp
@@ -55,6 +52,7 @@ import io.music_assistant.client.ui.compose.common.items.TrackWithMenu
 import io.music_assistant.client.ui.compose.common.providers.ProviderIcon
 import io.music_assistant.client.ui.compose.common.rememberToastState
 import io.music_assistant.client.ui.compose.common.viewmodel.ActionsViewModel
+import io.music_assistant.client.ui.compose.nav.Screen
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -74,20 +72,18 @@ fun SearchScreen(
         }
     }
 
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    LaunchedEffect(state.searchState.query) {
-        scrollBehavior.state.heightOffset = 0f
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
-    ) {
-        SearchTopBar(
-            onBack = onBack,
-            scrollBehavior = scrollBehavior,
-        )
+    Screen(
+        topBar = { scrollBehaviour ->
+            LaunchedEffect(state.searchState.query) {
+                scrollBehaviour.state.heightOffset = 0f
+            }
 
+            SearchTopBar(
+                onBack = onBack,
+                scrollBehavior = scrollBehaviour,
+            )
+        }
+    ) {
         SearchContent(
             state = state,
             serverUrl = serverUrl,
@@ -137,20 +133,13 @@ private fun SearchTopBar(
 ) {
     TopAppBar(
         title = {
-            Text(
-                text = "Global search",
-                style = MaterialTheme.typography.titleLarge
-            )
+            Text(text = "Global search")
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
             }
         },
-        windowInsets = WindowInsets(0, 0, 0, 0),
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
         scrollBehavior = scrollBehavior
     )
 }

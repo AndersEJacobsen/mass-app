@@ -113,7 +113,7 @@ fun NavigationRoot(modifier: Modifier = Modifier) {
     val bottomSheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
     val dialogStrategy = remember { DialogSceneStrategy<NavKey>() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box {
         // Main navigation content
         NavDisplay(
             modifier = Modifier.fillMaxSize(),
@@ -127,11 +127,15 @@ fun NavigationRoot(modifier: Modifier = Modifier) {
             ),
             entryProvider = entryProvider {
                 entry<NavScreen.Home> {
-                    HomeScreen(navigateTo = { screen -> backStack.add(screen) })
+                    HomeScreen(
+                        goToSettings = { backStack.add(NavScreen.Settings) }
+                    )
                 }
+
                 entry<NavScreen.Settings> {
                     SettingsScreen(
                         goHome = {
+                            ->
                             backStack.clear()
                             backStack.add(NavScreen.Home)
                         },

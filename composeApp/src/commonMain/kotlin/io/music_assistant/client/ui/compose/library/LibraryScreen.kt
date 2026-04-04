@@ -2,10 +2,9 @@
 
 package io.music_assistant.client.ui.compose.library
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -55,12 +53,15 @@ import io.music_assistant.client.data.model.server.MediaType
 import io.music_assistant.client.data.model.server.QueueOption
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.ToastHost
+import io.music_assistant.client.ui.compose.common.ToastState
 import io.music_assistant.client.ui.compose.common.rememberToastState
 import io.music_assistant.client.ui.compose.common.viewmodel.ActionsViewModel
+import io.music_assistant.client.ui.compose.nav.Screen
 import org.koin.compose.koinInject
 
 @Composable
 fun LibraryScreen(
+    contentPadding: PaddingValues,
     initialTabType: MediaType?,
     onBack: () -> Unit,
     onNavigateClick: (AppMediaItem) -> Unit,
@@ -98,21 +99,20 @@ fun LibraryScreen(
         }
     }
 
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
+    Screen(
+        topBar = { scrollBehavior ->
+            LibraryTopBar(
+                onBack = onBack,
+                tabs = state.tabs,
+                onTabSelected = viewModel::onTabSelected,
+                isRowMode = isRowMode,
+                onToggleViewMode = viewModel::toggleItemsRowMode,
+                scrollBehavior = scrollBehavior,
+            )
+        }
     ) {
-        LibraryTopBar(
-            onBack = onBack,
-            tabs = state.tabs,
-            onTabSelected = viewModel::onTabSelected,
-            isRowMode = isRowMode,
-            onToggleViewMode = viewModel::toggleItemsRowMode,
-            scrollBehavior = scrollBehavior,
-        )
         Library(
+            contentPadding = contentPadding,
             state = state,
             serverUrl = serverUrl,
             isRowMode = isRowMode,
@@ -192,7 +192,6 @@ private fun LibraryTopBar(
                 )
             }
         },
-        windowInsets = WindowInsets(0, 0, 0, 0),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
@@ -202,10 +201,11 @@ private fun LibraryTopBar(
 
 @Composable
 private fun Library(
+    modifier: Modifier = Modifier,
     state: LibraryViewModel.State,
     serverUrl: String?,
     isRowMode: Boolean,
-    toastState: io.music_assistant.client.ui.compose.common.ToastState,
+    toastState: ToastState,
     onNavigateClick: (AppMediaItem) -> Unit,
     onPlayClick: (AppMediaItem, QueueOption, Boolean) -> Unit,
     onCreatePlaylistClick: () -> Unit,
@@ -217,10 +217,11 @@ private fun Library(
     playlistActions: ActionsViewModel.PlaylistActions,
     libraryActions: ActionsViewModel.LibraryActions,
     progressActions: ActionsViewModel.ProgressActions? = null,
+    contentPadding: PaddingValues,
 ) {
     val selectedTab = state.tabs.find { it.isSelected } ?: state.tabs.first()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -269,6 +270,7 @@ private fun Library(
                     playlistActions = playlistActions,
                     libraryActions = libraryActions,
                     progressActions = progressActions,
+                    contentPadding
                 )
             }
         }
@@ -347,6 +349,7 @@ private fun TabContent(
     playlistActions: ActionsViewModel.PlaylistActions,
     libraryActions: ActionsViewModel.LibraryActions,
     progressActions: ActionsViewModel.ProgressActions? = null,
+    contentPadding: PaddingValues,
 ) {
     // Create separate grid states for each tab to preserve scroll position
     val artistsGridState = rememberLazyGridState()
@@ -425,6 +428,7 @@ private fun TabContent(
                                 playlistActions = playlistActions,
                                 libraryActions = libraryActions,
                                 progressActions = progressActions,
+                                contentPadding = contentPadding
                             )
                         }
 

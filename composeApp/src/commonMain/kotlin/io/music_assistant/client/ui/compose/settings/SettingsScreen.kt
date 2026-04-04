@@ -6,14 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CornerSize
@@ -21,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
@@ -36,11 +34,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,15 +54,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.music_assistant.client.api.ConnectionInfo
 import io.music_assistant.client.api.Defaults
-import io.music_assistant.client.settings.ConnectionHistoryEntry
-import io.music_assistant.client.settings.ConnectionType
 import io.music_assistant.client.data.model.server.ServerInfo
 import io.music_assistant.client.data.model.server.User
 import io.music_assistant.client.player.sendspin.audio.Codecs
+import io.music_assistant.client.settings.ConnectionHistoryEntry
+import io.music_assistant.client.settings.ConnectionType
 import io.music_assistant.client.ui.compose.auth.AuthenticationPanel
 import io.music_assistant.client.ui.compose.common.OverflowMenu
 import io.music_assistant.client.ui.compose.common.OverflowMenuOption
 import io.music_assistant.client.ui.compose.nav.BackHandler
+import io.music_assistant.client.ui.compose.nav.Screen
 import io.music_assistant.client.ui.theme.ThemeSetting
 import io.music_assistant.client.ui.theme.ThemeViewModel
 import io.music_assistant.client.utils.DataConnectionState
@@ -77,6 +76,7 @@ import org.publicvalue.multiplatform.qrcode.CameraPosition
 import org.publicvalue.multiplatform.qrcode.CodeType
 import org.publicvalue.multiplatform.qrcode.ScannerWithPermissions
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(goHome: () -> Unit, exitApp: () -> Unit) {
     val themeViewModel = koinViewModel<ThemeViewModel>()
@@ -98,43 +98,39 @@ fun SettingsScreen(goHome: () -> Unit, exitApp: () -> Unit) {
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { scaffoldPadding ->
+    Screen(
+        topBar = { scrollBehavior ->
+            TopAppBar(
+                title = { Text("Settings") },
+                actions = {
+                    ThemeChooser(
+                        modifier = Modifier.padding(end = 16.dp),
+                        currentTheme = theme.value
+                    ) { changedTheme ->
+                        themeViewModel.switchTheme(changedTheme)
+                    }
+                },
+                navigationIcon = {
+                    if (isAuthenticated) {
+                        IconButton(onClick = goHome) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        }
+                    }
+                },
+                scrollBehavior = scrollBehavior
+            )
+        }
+    ) {
         Column(
             modifier = Modifier
                 .background(color = MaterialTheme.colorScheme.background)
                 .fillMaxSize()
-                .padding(scaffoldPadding)
-                .consumeWindowInsets(scaffoldPadding)
-                .systemBarsPadding(),
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(all = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                ThemeChooser(currentTheme = theme.value) { changedTheme ->
-                    themeViewModel.switchTheme(changedTheme)
-                }
-            }
-
-            // Content
-            val scrollState = rememberScrollState()
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState())                ,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 var ipAddress by remember { mutableStateOf(Defaults.URI) }
@@ -190,9 +186,7 @@ fun SettingsScreen(goHome: () -> Unit, exitApp: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    if (isAuthenticated) {
-                        Button(onClick = goHome) { Text("GO HOME") }
-                    } else {
+                    if (!isAuthenticated) {
                         OutlinedButton(onClick = exitApp) { Text("EXIT APP") }
                     }
                 }
@@ -371,7 +365,7 @@ private fun ConnectionMethodTabs(
     val directHasToken = port.toIntOrNull()
         ?.let { viewModel.hasCredentialsForDirect(ipAddress, it, isTls) } ?: false
     val webrtcHasToken = webrtcRemoteId.isNotBlank() &&
-        viewModel.hasCredentialsForWebRTC(webrtcRemoteId)
+            viewModel.hasCredentialsForWebRTC(webrtcRemoteId)
 
     SectionCard {
         SectionTitle("Connection Method")
@@ -441,6 +435,7 @@ private fun ConnectionMethodTabs(
                         }
                         viewModel.setPreferredConnectionMethod("direct")
                     }
+
                     ConnectionType.WEBRTC -> {
                         entry.remoteId?.let { viewModel.setWebrtcRemoteId(it) }
                         viewModel.setPreferredConnectionMethod("webrtc")

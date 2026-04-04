@@ -9,23 +9,27 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,18 +60,18 @@ import io.music_assistant.client.ui.compose.home.nav.rememberHomeNavBackStack
 import io.music_assistant.client.ui.compose.item.ItemDetailsScreen
 import io.music_assistant.client.ui.compose.library.LibraryScreen
 import io.music_assistant.client.ui.compose.nav.BackHandler
-import io.music_assistant.client.ui.compose.nav.NavScreen
 import io.music_assistant.client.ui.compose.search.SearchScreen
 import io.music_assistant.client.utils.SessionState
+import io.music_assistant.client.utils.WindowClass
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeScreenViewModel = koinViewModel(),
     actionsViewModel: ActionsViewModel = koinViewModel(),
-    navigateTo: (NavScreen) -> Unit,
+    goToSettings: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     val toastState = rememberToastState()
@@ -84,7 +88,6 @@ fun HomeScreen(
     }
 
     var showPlayersView by remember { mutableStateOf(false) }
-    var isQueueExpanded by remember { mutableStateOf(false) }
 
     val recommendationsState = viewModel.recommendationsState.collectAsStateWithLifecycle()
     val serverUrl by viewModel.serverUrl.collectAsStateWithLifecycle()
@@ -121,218 +124,133 @@ fun HomeScreen(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-    ) { paddingValues ->
-        val connectionState = recommendationsState.value.connectionState
-        val dataState = recommendationsState.value.recommendations
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Simple slide transition between main screen and big player
-            AnimatedContent(
-                targetState = showPlayersView,
-                transitionSpec = {
-                    slideInVertically(
-                        initialOffsetY = { if (targetState) it else -it },
-                        animationSpec = tween(300)
-                    ) togetherWith slideOutVertically(
-                        targetOffsetY = { if (targetState) -it else it },
-                        animationSpec = tween(300)
-                    )
-                },
-                label = "player_transition"
-            ) { isPlayersViewShown ->
+    val connectionState = recommendationsState.value.connectionState
+    val dataState = recommendationsState.value.recommendations
+    // Simple slide transition between main screen and big player
+    AnimatedContent(
+        targetState = showPlayersView,
+        transitionSpec = {
+            slideInVertically(
+                initialOffsetY = { if (targetState) it else -it },
+                animationSpec = tween(300)
+            ) togetherWith slideOutVertically(
+                targetOffsetY = { if (targetState) -it else it },
+                animationSpec = tween(300)
+            )
+        },
+        label = "player_transition"
+    ) { isPlayersViewShown ->
+        Scaffold(
+            bottomBar = {
                 if (!isPlayersViewShown) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                    ) {
-                        HomeContent(
-                            modifier = Modifier.weight(1f),
-                            homeBackStack = homeBackStack,
-                            connectionState = connectionState,
-                            dataState = dataState,
-                            serverUrl = serverUrl,
-                            onPlayClick = viewModel::onPlayClick,
-                            playlistActions = ActionsViewModel.PlaylistActions(
-                                onLoadPlaylists = actionsViewModel::getEditablePlaylists,
-                                onAddToPlaylist = actionsViewModel::addToPlaylist
-                            ),
-                            libraryActions = ActionsViewModel.LibraryActions(
-                                onLibraryClick = actionsViewModel::onLibraryClick,
-                                onFavoriteClick = actionsViewModel::onFavoriteClick
-                            ),
-                            progressActions = ActionsViewModel.ProgressActions(
-                                onMarkPlayed = actionsViewModel::onMarkPlayed,
-                                onMarkUnplayed = actionsViewModel::onMarkUnplayed
-                            ),
-                            navigateTo = navigateTo
-                        ) { modifier, provider ->
+                    NavigationBar(modifier = Modifier.height(88.dp)) {
+                        NavigationBarItem(
+                            selected = true,
+                            onClick = { },
+                            icon = {
+                                Icon(Icons.Default.Home, contentDescription = null)
+                            }
+                        )
+
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = {
+                                goToSettings()
+                            },
+                            icon = {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                            }
+                        )
+                    }
+                }
+            }
+        ) { contentPadding ->
+            val bottomPadding = contentPadding.calculateBottomPadding()
+            val isExpandedScreen = WindowClass.isAtLeastExpanded()
+            val floatingBarHeight = collapsedPlayerHeight(isExpandedScreen)
+
+            if (!isPlayersViewShown) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = bottomPadding)
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    HomeContent(
+                        homeBackStack = homeBackStack,
+                        connectionState = connectionState,
+                        dataState = dataState,
+                        serverUrl = serverUrl,
+                        onPlayClick = viewModel::onPlayClick,
+                        playlistActions = ActionsViewModel.PlaylistActions(
+                            onLoadPlaylists = actionsViewModel::getEditablePlaylists,
+                            onAddToPlaylist = actionsViewModel::addToPlaylist
+                        ),
+                        libraryActions = ActionsViewModel.LibraryActions(
+                            onLibraryClick = actionsViewModel::onLibraryClick,
+                            onFavoriteClick = actionsViewModel::onFavoriteClick
+                        ),
+                        progressActions = ActionsViewModel.ProgressActions(
+                            onMarkPlayed = actionsViewModel::onMarkPlayed,
+                            onMarkUnplayed = actionsViewModel::onMarkUnplayed
+                        ),
+                        providerIconFetcher = { modifier, provider ->
                             actionsViewModel.getProviderIcon(provider)
                                 ?.let { ProviderIcon(modifier, it) }
-                        }
+                        },
+                        contentPadding = PaddingValues(
+                            bottom = floatingBarHeight + FloatingBarDefaults.padding
+                        )
+                    )
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                                .defaultMinSize(minHeight = 100.dp)
-                                .clickable { showPlayersView = true }
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            when (val state = playersState) {
-                                is HomeScreenViewModel.PlayersState.Loading -> Text(
-                                    text = "Loading players...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-
-                                is HomeScreenViewModel.PlayersState.Data -> {
-                                    if (state.playerData.isEmpty()) {
-                                        Text(
-                                            text = "No players available",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    } else {
-                                        PlayersPager(
-                                            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
-                                            playerPagerState = playerPagerState,
-                                            playersState = state,
-                                            serverUrl = serverUrl,
-                                            simplePlayerAction = { playerId, action ->
-                                                viewModel.playerAction(playerId, action)
-                                            },
-                                            playerAction = { playerData, action ->
-                                                viewModel.playerAction(playerData, action)
-                                            },
-                                            onFavoriteClick = actionsViewModel::onFavoriteClick,
-                                            showQueue = false,
-                                            isQueueExpanded = isQueueExpanded,
-                                            onQueueExpandedSwitch = {
-                                                isQueueExpanded = !isQueueExpanded
-                                            },
-                                            onGoToLibrary = { showPlayersView = false },
-                                            onItemMoved = null,
-                                            queueAction = { action -> viewModel.queueAction(action) },
-                                            settingsAction = viewModel::openPlayerSettings,
-                                            dspSettingsAction = viewModel::openPlayerDspSettings,
-                                            moveToPlayer = { id: String ->
-                                                val player =
-                                                    state.playerData.find { it.player.id == id }
-                                                if (player != null) {
-                                                    viewModel.selectPlayer(player.player)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-
-                                else -> Text(
-                                    text = "No players available",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Column(
+                    FloatingBar(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .align(Alignment.BottomCenter),
+                        onClick = { showPlayersView = true }
                     ) {
-                        // Close button
-                        IconButton(
-                            onClick = { showPlayersView = false },
-                            modifier = Modifier.fillMaxWidth().height(36.dp)
-                                .align(Alignment.CenterHorizontally)
-                        ) {
-                            Icon(
-                                Icons.Default.ExpandMore,
-                                "Collapse",
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            when (val state = playersState) {
-                                is HomeScreenViewModel.PlayersState.Loading -> Text(
-                                    text = "Loading players...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-
-                                is HomeScreenViewModel.PlayersState.Data -> {
-                                    if (state.playerData.isEmpty()) {
-                                        Text(
-                                            text = "No players available",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    } else {
-                                        PlayersPager(
-                                            modifier = Modifier.fillMaxSize(),
-                                            playerPagerState = playerPagerState,
-                                            playersState = state,
-                                            serverUrl = serverUrl,
-                                            simplePlayerAction = { playerId, action ->
-                                                viewModel.playerAction(playerId, action)
-                                            },
-                                            playerAction = { playerData, action ->
-                                                viewModel.playerAction(playerData, action)
-                                            },
-                                            onFavoriteClick = actionsViewModel::onFavoriteClick,
-                                            showQueue = true,
-                                            isQueueExpanded = isQueueExpanded,
-                                            onQueueExpandedSwitch = {
-                                                isQueueExpanded = !isQueueExpanded
-                                            },
-                                            onGoToLibrary = { showPlayersView = false },
-                                            onItemMoved = { indexShift ->
-                                                val currentPlayer =
-                                                    state.playerData[playerPagerState.currentPage].player
-                                                val newIndex =
-                                                    (playerPagerState.currentPage + indexShift).coerceIn(
-                                                        0,
-                                                        state.playerData.size - 1
-                                                    )
-                                                val newPlayers =
-                                                    state.playerData.map { it.player.id }
-                                                        .toMutableList()
-                                                        .apply {
-                                                            add(
-                                                                newIndex,
-                                                                removeAt(playerPagerState.currentPage)
-                                                            )
-                                                        }
-                                                viewModel.selectPlayer(currentPlayer)
-                                                viewModel.onPlayersSortChanged(newPlayers)
-                                            },
-                                            queueAction = { action -> viewModel.queueAction(action) },
-                                            settingsAction = viewModel::openPlayerSettings,
-                                            dspSettingsAction = viewModel::openPlayerDspSettings,
-                                            moveToPlayer = { id: String ->
-                                                val player =
-                                                    state.playerData.find { it.player.id == id }
-                                                if (player != null) {
-                                                    viewModel.selectPlayer(player.player)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-
-                                else -> Text(
-                                    text = "No players available",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
+                        Players(
+                            playerPagerState = playerPagerState,
+                            state = playersState,
+                            serverUrl = serverUrl,
+                            homeScreenViewModel = viewModel,
+                            actionsViewModel = actionsViewModel,
+                            expanded = false,
+                            onClose = { showPlayersView = false },
+                            isExpandedScreen = isExpandedScreen
+                        )
+                    }
+                }
+            } else {
+                Column(modifier = Modifier
+                    .padding(contentPadding)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                ) {
+                    // Close button
+                    IconButton(
+                        onClick = { showPlayersView = false },
+                        modifier = Modifier.fillMaxWidth().height(36.dp)
+                            .align(Alignment.CenterHorizontally)
+                    ) {
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            "Collapse",
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Players(
+                            playerPagerState = playerPagerState,
+                            state = playersState,
+                            serverUrl = serverUrl,
+                            homeScreenViewModel = viewModel,
+                            actionsViewModel = actionsViewModel,
+                            expanded = true,
+                            onClose = { showPlayersView = false },
+                            isExpandedScreen = isExpandedScreen
+                        )
                     }
                 }
             }
@@ -351,8 +269,8 @@ private fun HomeContent(
     playlistActions: ActionsViewModel.PlaylistActions,
     libraryActions: ActionsViewModel.LibraryActions,
     progressActions: ActionsViewModel.ProgressActions,
-    navigateTo: (NavScreen) -> Unit,
-    providerIconFetcher: (@Composable (Modifier, String) -> Unit)
+    providerIconFetcher: (@Composable (Modifier, String) -> Unit),
+    contentPadding: PaddingValues
 ) {
     @Suppress("UNCHECKED_CAST")
     val typedBackStack = homeBackStack as NavBackStack<HomeNavScreen>
@@ -376,7 +294,7 @@ private fun HomeContent(
         entryProvider = entryProvider {
             entry<HomeNavScreen.Landing> {
                 LandingPage(
-                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = contentPadding,
                     connectionState = connectionState,
                     dataState = dataState,
                     serverUrl = serverUrl,
@@ -411,13 +329,13 @@ private fun HomeContent(
                     playlistActions = playlistActions,
                     libraryActions = libraryActions,
                     progressActions = progressActions,
-                    navigateTo = navigateTo,
                     providerIconFetcher = providerIconFetcher
                 )
             }
 
             entry<HomeNavScreen.Library> {
                 LibraryScreen(
+                    contentPadding = contentPadding,
                     initialTabType = it.type,
                     onBack = { typedBackStack.removeLastOrNull() },
                     onNavigateClick = { item ->
@@ -445,6 +363,7 @@ private fun HomeContent(
 
             entry<HomeNavScreen.ItemDetails> {
                 ItemDetailsScreen(
+                    contentPadding = contentPadding,
                     itemId = it.itemId,
                     mediaType = it.mediaType,
                     providerId = it.providerId,
@@ -477,4 +396,77 @@ private fun HomeContent(
             }
         }
     )
+}
+
+@Composable
+private fun Players(
+    playerPagerState: PagerState,
+    state: HomeScreenViewModel.PlayersState,
+    serverUrl: String?,
+    homeScreenViewModel: HomeScreenViewModel,
+    actionsViewModel: ActionsViewModel,
+    expanded: Boolean,
+    onClose: () -> Unit,
+    isExpandedScreen: Boolean
+) {
+    if (state is HomeScreenViewModel.PlayersState.Data && state.playerData.isNotEmpty()) {
+        PlayersPager(
+            playerPagerState = playerPagerState,
+            playersState = state,
+            serverUrl = serverUrl,
+            simplePlayerAction = { playerId, action ->
+                homeScreenViewModel.playerAction(playerId, action)
+            },
+            playerAction = { playerData, action ->
+                homeScreenViewModel.playerAction(playerData, action)
+            },
+            onFavoriteClick = actionsViewModel::onFavoriteClick,
+            expanded = expanded,
+            onClose = onClose,
+            onItemMoved = { indexShift ->
+                val currentPlayer =
+                    state.playerData[playerPagerState.currentPage].player
+                val newIndex =
+                    (playerPagerState.currentPage + indexShift).coerceIn(
+                        0,
+                        state.playerData.size - 1
+                    )
+                val newPlayers =
+                    state.playerData.map { it.player.id }
+                        .toMutableList()
+                        .apply {
+                            add(
+                                newIndex,
+                                removeAt(playerPagerState.currentPage)
+                            )
+                        }
+                homeScreenViewModel.selectPlayer(currentPlayer)
+                homeScreenViewModel.onPlayersSortChanged(newPlayers)
+            },
+            queueAction = { action -> homeScreenViewModel.queueAction(action) },
+            moveToPlayer = { id: String ->
+                val player =
+                    state.playerData.find { it.player.id == id }
+                if (player != null) {
+                    homeScreenViewModel.selectPlayer(player.player)
+                }
+            },
+            isExpandedScreen = isExpandedScreen
+        )
+    } else {
+        Box(Modifier.fillMaxWidth().height(collapsedPlayerHeight(isExpandedScreen))) {
+            val text = when (state) {
+                is HomeScreenViewModel.PlayersState.Loading -> "Loading players..."
+                is HomeScreenViewModel.PlayersState.Data -> "No players available"
+                else -> "No players available"
+            }
+
+            Text(
+                modifier = Modifier.align(Alignment.Center),
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

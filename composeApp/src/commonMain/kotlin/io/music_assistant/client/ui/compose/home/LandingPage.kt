@@ -31,31 +31,27 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import io.music_assistant.client.ui.compose.common.icons.GenreIcon
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.music_assistant.client.data.model.client.AppMediaItem
 import io.music_assistant.client.data.model.server.MediaType
 import io.music_assistant.client.data.model.server.QueueOption
 import io.music_assistant.client.ui.compose.common.DataState
+import io.music_assistant.client.ui.compose.common.icons.GenreIcon
 import io.music_assistant.client.ui.compose.common.items.AlbumWithMenu
 import io.music_assistant.client.ui.compose.common.items.ArtistWithMenu
 import io.music_assistant.client.ui.compose.common.items.AudiobookWithMenu
@@ -67,15 +63,13 @@ import io.music_assistant.client.ui.compose.common.items.RadioWithMenu
 import io.music_assistant.client.ui.compose.common.items.TrackWithMenu
 import io.music_assistant.client.ui.compose.common.painters.rememberPlaceholderPainter
 import io.music_assistant.client.ui.compose.common.viewmodel.ActionsViewModel
-import io.music_assistant.client.ui.compose.nav.NavScreen
+import io.music_assistant.client.ui.compose.nav.Screen
 import io.music_assistant.client.utils.SessionState
-import musicassistantclient.composeapp.generated.resources.Res
-import musicassistantclient.composeapp.generated.resources.mass
-import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun LandingPage(
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
     connectionState: SessionState,
     dataState: DataState<List<AppMediaItem.RecommendationFolder>>,
     serverUrl: String?,
@@ -85,7 +79,6 @@ fun LandingPage(
     playlistActions: ActionsViewModel.PlaylistActions,
     libraryActions: ActionsViewModel.LibraryActions,
     progressActions: ActionsViewModel.ProgressActions? = null,
-    navigateTo: (NavScreen) -> Unit,
     providerIconFetcher: (@Composable (Modifier, String) -> Unit)
 ) {
     val filteredData = remember(dataState) {
@@ -110,13 +103,14 @@ fun LandingPage(
 
     val listState = rememberLazyListState()
 
-    Column(modifier = modifier.fillMaxSize()) {
-
-        LandingPageTopBar(navigateTo)
+    Screen(
+        topBar = { scrollBehavior ->
+            LandingPageTopBar(scrollBehavior)
+        }
+    ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(bottom = 16.dp)
+            contentPadding = contentPadding
         ) {
             // Your library row
             item {
@@ -155,42 +149,11 @@ fun LandingPage(
 }
 
 @Composable
-private fun LandingPageTopBar(
-    navigateTo: (NavScreen) -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier.height(64.dp).fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start)
-        ) {
-            Image(
-                painter = painterResource(Res.drawable.mass),
-                contentDescription = "Music Assistant Logo",
-                modifier = Modifier.size(48.dp)
-            )
-            Text(
-                text = "MASS",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = { navigateTo(NavScreen.Settings) }) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                )
-            }
-        }
-    }
+private fun LandingPageTopBar(scrollBehavior: TopAppBarScrollBehavior) {
+    TopAppBar(
+        title = { Text("Home") },
+        scrollBehavior = scrollBehavior
+    )
 }
 
 // --- Common UI Components ---
