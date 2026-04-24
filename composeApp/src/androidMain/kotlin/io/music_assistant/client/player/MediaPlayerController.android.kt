@@ -246,7 +246,10 @@ actual class MediaPlayerController actual constructor(platformContext: PlatformC
             listener.onError(IllegalStateException("Audio configuration not supported by device: $errorName"))
             return
         }
-        val bufferSize = minBufferSize * 16 // Large buffer to absorb decode/scheduling jitter
+        // 4× minimum absorbs decode/scheduling jitter while keeping steady-state fill low.
+        // Larger multipliers (the previous 16×) add hundreds of ms of audible latency — unacceptable
+        // for group-sync use. Bump back up if we start seeing underruns on weaker devices.
+        val bufferSize = minBufferSize * 4
 
         logger.i { "AudioTrack config: sampleRate=$sampleRate, channels=$channels, bitDepth=$bitDepth" }
         logger.i { "AudioTrack buffer: $bufferSize bytes (min: $minBufferSize)" }
@@ -268,6 +271,9 @@ actual class MediaPlayerController actual constructor(platformContext: PlatformC
                 )
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
+                // Hint to Android to route to the low-latency output path where available.
+                // Falls back silently on devices that can't honor it.
+                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .build()
 
             // Record creation time to help ignore spurious focus changes during transitions
@@ -283,6 +289,22 @@ actual class MediaPlayerController actual constructor(platformContext: PlatformC
 
             audioTrack = track
             logger.i { "AudioTrack created: STATE_INITIALIZED" }
+
+            // Default start threshold is the full bufferSize — HW waits for the
+            // buffer to fill completely before emitting a single sample. Our
+            // wall-clock gate paces writes at HW rate, so the buffer would just
+            // sit at that threshold forever, adding ~100–400 ms of pure latency
+            // that drifts as the buffer slowly drains. Set threshold to 1 frame
+            // so HW starts emitting immediately and effective pipeline lag is
+            // just the HAL/HW latency, which is stable.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    track.setStartThresholdInFrames(1)
+                    logger.i { "AudioTrack startThreshold set to 1 frame" }
+                } catch (e: Exception) {
+                    logger.w(e) { "Failed to set startThresholdInFrames" }
+                }
+            }
 
             track.play()
 

@@ -80,7 +80,9 @@ internal fun PlayersPager(
     queueAction: (QueueAction) -> Unit,
     moveToPlayer: (String) -> Unit,
     isExpandedScreen: Boolean,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    localPlayerId: String,
+    onAdjustPlaybackDelay: (Int) -> Unit,
 ) {
     val modifier = if (expanded) {
         modifier
@@ -131,7 +133,9 @@ internal fun PlayersPager(
                 GroupSettingsDialog(
                     player = player,
                     onDismissRequest = { showGroupDialog = false },
-                    groupAction = simplePlayerAction
+                    groupAction = simplePlayerAction,
+                    localPlayerId = localPlayerId,
+                    onAdjustPlaybackDelay = onAdjustPlaybackDelay,
                 )
             }
             if (showDspDialog) {

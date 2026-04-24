@@ -106,7 +106,6 @@ class SendspinClient(
             val capabilities = SendspinCapabilities.buildClientHello(config, config.codecPreference)
             val dispatcherConfig = MessageDispatcherConfig(
                 clientCapabilities = capabilities,
-                initialVolume = currentVolume,
                 authToken = config.authToken,
                 requiresAuth = config.requiresAuth
             )
@@ -120,8 +119,6 @@ class SendspinClient(
             // Create state reporter (uses unified state)
             val reporter = StateReporter(
                 messageDispatcher = dispatcher,
-                volumeProvider = { currentVolume },
-                mutedProvider = { currentMuted },
                 stateProvider = { _state.value }
             )
             stateReporter = reporter

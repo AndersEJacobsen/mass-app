@@ -20,8 +20,6 @@ import kotlin.coroutines.CoroutineContext
  */
 class StateReporter(
     private val messageDispatcher: MessageDispatcher,
-    private val volumeProvider: () -> Int,
-    private val mutedProvider: () -> Boolean,
     private val stateProvider: () -> SendspinState
 ) : CoroutineScope {
 
@@ -81,17 +79,8 @@ class StateReporter(
      * Used for volume/mute changes or initial sync.
      */
     suspend fun reportNow(state: PlayerStateValue) {
-        val volume = volumeProvider()
-        val muted = mutedProvider()
-
-        val playerState = PlayerStateObject(
-            state = state,
-            volume = volume,
-            muted = muted
-        )
-
-        logger.d { "Reporting state: state=$state, volume=$volume, muted=$muted" }
-        messageDispatcher.sendState(playerState)
+        logger.i { "Reporting state: state=$state" }
+        messageDispatcher.sendState(PlayerStateObject(state = state))
     }
 
     /**

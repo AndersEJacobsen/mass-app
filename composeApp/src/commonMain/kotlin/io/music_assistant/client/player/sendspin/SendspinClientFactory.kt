@@ -10,6 +10,11 @@ import io.music_assistant.client.player.sendspin.transport.WebRTCDataChannelTran
 import io.music_assistant.client.settings.SettingsRepository
 import io.music_assistant.client.utils.NetworkMonitor
 import io.music_assistant.client.webrtc.DataChannelWrapper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Signals that the WebRTC sendspin channel was already used (goodbye sent)
@@ -24,6 +29,8 @@ class WebRTCSendspinChannelExhausted : Exception("WebRTC sendspin channel exhaus
  *
  * Owns a shared [AudioStreamManager] + [ClockSynchronizer] that persist across reconnections,
  * so the audio sink keeps playing from its buffer while the protocol layer reconnects.
+ * Also owns the single collector that feeds the user's playback-delay setting into
+ * the pipeline's wall-clock gate (`userDelayMicros`).
  */
 class SendspinClientFactory(
     private val settings: SettingsRepository,
@@ -33,9 +40,14 @@ class SendspinClientFactory(
 ) {
     private val log = Logger.withTag("SendspinClientFactory")
 
+    // Long-lived scope for hot-tunable settings observers. Cancelled only when the
+    // shared pipeline is destroyed (user logout / permanent error).
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     // Shared audio pipeline — persists across SendspinClient reconnections
     private var sharedClockSynchronizer: ClockSynchronizer? = null
     private var sharedPipeline: AudioStreamManager? = null
+    private var delayCollectorJob: Job? = null
     private var webrtcSendspinUsed = false
 
     /**
@@ -44,7 +56,17 @@ class SendspinClientFactory(
      */
     fun getOrCreatePipeline(): Pair<AudioStreamManager, ClockSynchronizer> {
         val cs = sharedClockSynchronizer ?: ClockSynchronizer().also { sharedClockSynchronizer = it }
-        val pipeline = sharedPipeline ?: AudioStreamManager(cs, mediaPlayerController).also { sharedPipeline = it }
+        val pipeline = sharedPipeline ?: AudioStreamManager(cs, mediaPlayerController).also {
+            sharedPipeline = it
+            // Seed + subscribe: user-tuned playback delay flows straight into the
+            // consumer's wall-clock gate. Hot-tunable; no reconnect needed.
+            it.userDelayMicros = settings.sendspinStaticDelayMs.value * 1000L
+            delayCollectorJob = scope.launch {
+                settings.sendspinStaticDelayMs.collect { ms ->
+                    it.userDelayMicros = ms * 1000L
+                }
+            }
+        }
         return Pair(pipeline, cs)
     }
 
@@ -62,6 +84,8 @@ class SendspinClientFactory(
      */
     suspend fun destroyPipeline() {
         log.i { "Destroying shared audio pipeline" }
+        delayCollectorJob?.cancel()
+        delayCollectorJob = null
         sharedPipeline?.stopStream()
         sharedPipeline?.close()
         sharedPipeline = null
@@ -124,8 +148,10 @@ class SendspinClientFactory(
 
         log.i { "Creating Sendspin client over WebRTC data channel" }
 
-        // WebRTC SCTP can deliver out-of-order — need deep reorder buffer
-        pipeline.reorderDepth = 32
+        // WebRTC SCTP can deliver out-of-order — reorder buffer covers it.
+        // 8 frames (~160 ms) is plenty for LAN-class SCTP; the previous 32 added ~640 ms-
+        // of group-sync lag. Raise if audible glitches appear on noisier links.
+        pipeline.reorderDepth = 8
 
         val config = SendspinConfig(
             clientId = settings.sendspinClientId.value,
