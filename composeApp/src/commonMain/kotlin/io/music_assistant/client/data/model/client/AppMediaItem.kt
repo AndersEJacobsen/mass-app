@@ -663,7 +663,7 @@ abstract class AppMediaItem(
                     playlists.toAppMediaItemList() +
                     podcasts.toAppMediaItemList() +
                     audiobooks.toAppMediaItemList() +
-                    radios.toAppMediaItemList() +
+                    radio.toAppMediaItemList() +
                     genres.toAppMediaItemList()
 
         val AudioFormat.description

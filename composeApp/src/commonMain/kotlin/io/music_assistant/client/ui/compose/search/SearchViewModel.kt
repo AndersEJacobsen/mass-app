@@ -7,7 +7,6 @@ import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.data.MainDataSource
 import io.music_assistant.client.data.model.client.AppMediaItem
 import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItem
-import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItemList
 import io.music_assistant.client.data.model.server.MediaType
 import io.music_assistant.client.data.model.server.QueueOption
 import io.music_assistant.client.data.model.server.SearchResult
@@ -28,6 +27,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.media_type_albums
+import musicassistantclient.composeapp.generated.resources.media_type_artists
+import musicassistantclient.composeapp.generated.resources.media_type_audiobooks
+import musicassistantclient.composeapp.generated.resources.media_type_genres
+import musicassistantclient.composeapp.generated.resources.media_type_playlists
+import musicassistantclient.composeapp.generated.resources.media_type_podcasts
+import musicassistantclient.composeapp.generated.resources.media_type_radio
+import musicassistantclient.composeapp.generated.resources.media_type_tracks
+import org.jetbrains.compose.resources.StringResource
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
@@ -45,14 +54,17 @@ class SearchViewModel(
             searchState = SearchState(
                 query = "",
                 mediaTypes = listOf(
-                    MediaTypeSelect(MediaType.ARTIST, false),
-                    MediaTypeSelect(MediaType.ALBUM, false),
-                    MediaTypeSelect(MediaType.TRACK, false),
-                    MediaTypeSelect(MediaType.PLAYLIST, false),
-                    MediaTypeSelect(MediaType.AUDIOBOOK, false),
-                    MediaTypeSelect(MediaType.PODCAST, false),
-                    MediaTypeSelect(MediaType.RADIO, false),
-                ),
+                    MediaType.ARTIST,
+                    MediaType.ALBUM,
+                    MediaType.TRACK,
+                    MediaType.PLAYLIST,
+                    MediaType.AUDIOBOOK,
+                    MediaType.PODCAST,
+                    MediaType.RADIO,
+                    // TODO server doesn't return genre in this endpoint yet,
+                    //  need to fetch separately if we want to show it
+                    // MediaType.GENRE,
+                ).map { MediaTypeSelect(it, false) },
                 libraryOnly = false,
             ),
             resultsState = DataState.NoData(),
@@ -83,7 +95,7 @@ class SearchViewModel(
                     is MediaItemUpdatedEvent,
                     is MediaItemAddedEvent,
                     is MediaItemDeletedEvent,
-                    -> {
+                        -> {
                         event.data?.let { updateSearchResultsIfNeeded(it) }
                     }
 
@@ -164,21 +176,12 @@ class SearchViewModel(
                     ),
                 )
                 if (isActive) {
-                    result.getOrNull()?.resultAs<SearchResult>()?.toAppMediaItemList()
-                        ?.let { items ->
-                            val results = SearchResults(
-                                artists = items.filterIsInstance<AppMediaItem.Artist>(),
-                                albums = items.filterIsInstance<AppMediaItem.Album>(),
-                                tracks = items.filterIsInstance<AppMediaItem.Track>(),
-                                playlists = items.filterIsInstance<AppMediaItem.Playlist>(),
-                                audiobooks = items.filterIsInstance<AppMediaItem.Audiobook>(),
-                                podcasts = items.filterIsInstance<AppMediaItem.Podcast>(),
-                                radios = items.filterIsInstance<AppMediaItem.RadioStation>(),
-                            )
-                            if (isActive) {
-                                _state.update { it.copy(resultsState = DataState.Data(results)) }
-                            }
-                        } ?: run {
+                    result.getOrNull()?.resultAs<SearchResult>()?.let { search ->
+                        val results = search.toAppSearchResults()
+                        if (isActive) {
+                            _state.update { it.copy(resultsState = DataState.Data(results)) }
+                        }
+                    } ?: run {
                         _state.update { it.copy(resultsState = DataState.Error()) }
                     }
                 }
@@ -212,5 +215,33 @@ class SearchViewModel(
         val audiobooks: List<AppMediaItem.Audiobook>,
         val podcasts: List<AppMediaItem.Podcast>,
         val radios: List<AppMediaItem.RadioStation>,
+        val genres: List<AppMediaItem.Genre>,
+    ) {
+        val nonEmptyLists = listOf(
+            Item(Res.string.media_type_tracks, tracks),
+            Item(Res.string.media_type_artists, artists),
+            Item(Res.string.media_type_albums, albums),
+            Item(Res.string.media_type_playlists, playlists),
+            Item(Res.string.media_type_podcasts, podcasts),
+            Item(Res.string.media_type_audiobooks, audiobooks),
+            Item(Res.string.media_type_radio, radios),
+            Item(Res.string.media_type_genres, genres),
+        ).filter { it.items.isNotEmpty() }
+
+        data class Item(
+            val mediaTypeName: StringResource,
+            val items: List<AppMediaItem>,
+        )
+    }
+
+    private fun SearchResult.toAppSearchResults() = SearchResults(
+        artists = artists.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Artist },
+        albums = albums.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Album },
+        tracks = tracks.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Track },
+        playlists = playlists.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Playlist },
+        audiobooks = audiobooks.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Audiobook },
+        podcasts = podcasts.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Podcast },
+        radios = radio.mapNotNull { it.toAppMediaItem() as? AppMediaItem.RadioStation },
+        genres = genres.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Genre },
     )
 }
