@@ -9,44 +9,72 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import com.kmpalette.extensions.network.rememberNetworkDominantColorState
-import io.ktor.http.Url
+
+/**
+ * Theme-independent extraction result kept in [DominantColorViewModel]'s cache.
+ * Both tint variants are pre-computed so consumers select cheaply by surface luminance.
+ */
+data class ExtractedColors(
+    val dominant: Color,
+    val tintOnDark: Color,
+    val tintOnLight: Color,
+)
+
+/**
+ * Suspending fetcher used by [rememberAnimatedPlayerColors] — supplied by the screen
+ * so the composable doesn't depend on Koin and is trivially testable with a fake.
+ */
+typealias ExtractedColorsFetcher = suspend (imageUrl: String) -> ExtractedColors?
+
+/**
+ * Dominant color extracted from artwork plus its theme-adjusted control tint.
+ * Both fields are animated; [controlTint] is the variant matching the current
+ * surface luminance so call sites can drop their per-recomposition `asControlTint()`.
+ */
+data class PlayerColors(
+    val dominant: Color,
+    val controlTint: Color,
+)
 
 @Composable
-fun rememberAnimatedDominantColor(
+fun rememberAnimatedPlayerColors(
     imageUrl: String?,
     fallback: Color,
-): State<Color> {
-    val dominantColorState = rememberNetworkDominantColorState(
-        defaultColor = fallback,
-        defaultOnColor = Color.White,
-    )
+    fetchColors: ExtractedColorsFetcher,
+): State<PlayerColors> {
+    val onDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    LaunchedEffect(imageUrl) {
-        if (imageUrl != null) {
-            try {
-                dominantColorState.updateFrom(Url(imageUrl))
-            } catch (_: Exception) {
-                dominantColorState.reset()
-            }
-        } else {
-            dominantColorState.reset()
-        }
+    val extracted by produceState<ExtractedColors?>(
+        initialValue = null,
+        key1 = imageUrl,
+    ) {
+        value = imageUrl?.let { fetchColors(it) }
     }
 
-    val extractedColor = Color(dominantColorState.color.value as ULong)
-    val targetColor = extractedColor.takeIf {
-        imageUrl != null && it != Color.Unspecified && it != Color.Transparent
-    } ?: fallback
+    val targetDominant = extracted?.dominant ?: fallback
+    val targetTint = extracted
+        ?.let { if (onDark) it.tintOnDark else it.tintOnLight }
+        ?: fallback.ensureReadable(onDarkSurface = onDark)
 
-    return animateColorAsState(
-        targetValue = targetColor,
+    val animatedDominant by animateColorAsState(
+        targetValue = targetDominant,
         animationSpec = tween(durationMillis = 500),
     )
+    val animatedTint by animateColorAsState(
+        targetValue = targetTint,
+        animationSpec = tween(durationMillis = 500),
+    )
+
+    val state = remember { mutableStateOf(PlayerColors(targetDominant, targetTint)) }
+    state.value = PlayerColors(animatedDominant, animatedTint)
+    return state
 }
 
 /**
@@ -100,14 +128,4 @@ private fun hueToRgb(p: Float, q: Float, t: Float): Float {
         tt < 2f / 3f -> p + (q - p) * (2f / 3f - tt) * 6f
         else -> p
     }
-}
-
-/**
- * Return a contrast-adjusted copy of this color suitable for foreground controls,
- * based on the current theme's surface luminance.
- */
-@Composable
-fun Color.asControlTint(): Color {
-    val onDarkSurface = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return ensureReadable(onDarkSurface = onDarkSurface)
 }
