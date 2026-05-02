@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IntentPhrases</key>
+	<array>
+		<dict>
+			<key>IntentName</key>
+			<string>INPlayMediaIntent</string>
+			<key>IntentExamples</key>
+			<array>
+				<string>Play jazz in Music Assistant</string>
+				<string>Play Pink Floyd in Music Assistant</string>
+				<string>Play Dark Side of the Moon in Music Assistant</string>
+				<string>Play my favorites in Music Assistant</string>
+				<string>In Music Assistant, play Alela Diane</string>
+				<string>In Music Assistant, play my workout playlist</string>
+				<string>Hey Siri, play radio in Music Assistant</string>
+			</array>
+		</dict>
+		<dict>
+			<key>IntentName</key>
+			<string>INUpdateMediaAffinityIntent</string>
+			<key>IntentExamples</key>
+			<array>
+				<string>I love this song in Music Assistant</string>
+				<string>I like this song in Music Assistant</string>
+				<string>I dislike this song in Music Assistant</string>
+				<string>Add this to my favorites in Music Assistant</string>
+				<string>In Music Assistant, I love this song</string>
+			</array>
+		</dict>
+		<dict>
+			<key>IntentName</key>
+			<string>INSearchForMediaIntent</string>
+			<key>IntentExamples</key>
+			<array>
+				<string>Search for jazz in Music Assistant</string>
+				<string>Find Pink Floyd in Music Assistant</string>
+				<string>Look up Beyoncé in Music Assistant</string>
+				<string>Search for Dark Side of the Moon in Music Assistant</string>
+				<string>In Music Assistant, search for podcasts about coffee</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

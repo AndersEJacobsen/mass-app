@@ -15,6 +15,7 @@
 		C85119282F18C7A900185678 /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = C85119272F18C7A900185678 /* Opus */; };
 		C851192B2F18C88B00185678 /* FLAC in Frameworks */ = {isa = PBXBuildFile; productRef = C851192A2F18C88B00185678 /* FLAC */; };
 		C851192E2F18C8A200185678 /* ogg in Frameworks */ = {isa = PBXBuildFile; productRef = C851192D2F18C8A200185678 /* ogg */; };
+		C8AV00012F2C000000000001 /* AppIntentVocabulary.plist in Resources */ = {isa = PBXBuildFile; fileRef = C8AV00022F2C000000000002 /* AppIntentVocabulary.plist */; };
 		C8CP00012F1A000000000001 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CP00032F1A000000000001 /* CarPlaySceneDelegate.swift */; };
 		C8CP00022F1A000000000002 /* CarPlayContentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CP00042F1A000000000002 /* CarPlayContentManager.swift */; };
 		C8CR00012F2A000000000001 /* ComposeRenderingGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CR00022F2A000000000002 /* ComposeRenderingGuard.swift */; };
@@ -32,6 +33,7 @@
 		7555FF82242A565900829871 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7555FF8C242A565B00829871 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB3632DC29227652001CCB65 /* Config.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		C8AV00032F2C000000000003 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = en; path = en.lproj/AppIntentVocabulary.plist; sourceTree = "<group>"; };
 		C8CP00032F1A000000000001 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		C8CP00042F1A000000000002 /* CarPlayContentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayContentManager.swift; sourceTree = "<group>"; };
 		C8CR00022F2A000000000002 /* ComposeRenderingGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeRenderingGuard.swift; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 				C8CR00022F2A000000000002 /* ComposeRenderingGuard.swift */,
 				058557D7273AAEEB004C7B11 /* Preview Content */,
 				C8CP00052F1A000000000003 /* CarPlay */,
+				C8AV00022F2C000000000002 /* AppIntentVocabulary.plist */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -197,6 +200,7 @@
 			files = (
 				058557D9273AAEEB004C7B11 /* Preview Assets.xcassets in Resources */,
 				058557BB273AAA24004C7B11 /* Assets.xcassets in Resources */,
+				C8AV00012F2C000000000001 /* AppIntentVocabulary.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,6 +246,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		C8AV00022F2C000000000002 /* AppIntentVocabulary.plist */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C8AV00032F2C000000000003 /* en */,
+			);
+			name = AppIntentVocabulary.plist;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		7555FFA3242A565B00829871 /* Debug */ = {
