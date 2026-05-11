@@ -43,15 +43,53 @@ class WebRTCTransport(
     private var messageListenerJob: Job? = null
     private var stateMonitorJob: Job? = null
     private var reconnectionJob: Job? = null
+    private var networkWatchJob: Job? = null
 
     val sendspinDataChannel: DataChannelWrapper?
         get() = manager?.sendspinDataChannel
 
     override fun connect() {
         connectionJob?.cancel()
+        startNetworkWatchIfNeeded()
         connectionJob = scope.launch {
             _state.value = TransportState.Connecting
             connectInternal(isReconnect = false)
+        }
+    }
+
+    /**
+     * Observes the OS-level default network. When it transitions from available → lost
+     * while we have a live connection, proactively tear down and kick reconnection
+     * instead of waiting for libwebrtc's ICE keepalive to notice (~6s on Android).
+     *
+     * Does NOT catch mid-call link-quality degradation (weak signal, packet loss) — the
+     * OS still considers the interface up in that case; only ICE/keepalive timeouts fire.
+     */
+    private fun startNetworkWatchIfNeeded() {
+        val net = networkAvailable ?: return
+        if (networkWatchJob?.isActive == true) return
+        networkWatchJob = scope.launch {
+            var wasAvailable = net.value
+            net.collect { available ->
+                if (wasAvailable && !available && _state.value is TransportState.Connected) {
+                    logger.w { "Default network lost — proactively aborting connection (skipping libwebrtc ICE timeout)" }
+                    onNetworkLost()
+                }
+                wasAvailable = available
+            }
+        }
+    }
+
+    private fun onNetworkLost() {
+        // Pre-empt the slow path: cancel state monitor, tear down manager, and start the
+        // reconnection loop. The loop gates on networkAvailable, so it waits until a
+        // network is back before attempting.
+        stateMonitorJob?.cancel()
+        messageListenerJob?.cancel()
+        reconnectionJob?.cancel()
+        reconnectionJob = scope.launch {
+            cleanupManager()
+            startReconnection()
         }
     }
 
@@ -171,6 +209,8 @@ class WebRTCTransport(
         messageListenerJob = null
         stateMonitorJob?.cancel()
         stateMonitorJob = null
+        networkWatchJob?.cancel()
+        networkWatchJob = null
         val mgr = manager
         manager = null
         if (mgr != null) {
