@@ -38,7 +38,7 @@ jobs:
       # WebRTC.xcframework is gitignored (~32 MB extracted, dSYMs shipped
       # separately). Cache keyed to the patched-binary release tag so
       # version/patch bumps trigger a redownload automatically. Keep in
-      # sync with ios-release.yml and ios_build_instructions.md.
+      # sync with ios-release.yml and IOS-BUILD-INSTRUCTIONS.md.
       - name: Cache WebRTC.xcframework
         id: cache-webrtc
         uses: actions/cache@v4

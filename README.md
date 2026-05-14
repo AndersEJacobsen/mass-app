@@ -27,7 +27,7 @@ Compatibility with Apple CarPlay and Android Auto is a core focus, ensuring you 
 
 ## Current set of features:
 
-### Disclaimer: This app is not intended to provide offline playback
+*Disclaimer: This app is not intended to provide offline playback*
 
 - All platforms:
   - managing MA players queues and playback;
@@ -37,7 +37,7 @@ Compatibility with Apple CarPlay and Android Auto is a core focus, ensuring you 
 - Android-specific:
   - requires Android 8.0 or later; 
   - media service (background playback) and media notification in system area for quick access to players controls;
-  - Android Auto support for the built-in player, plus voice playback ("Hey Google, play *X* on Music Assistant") via Google Assistant and Gemini App Actions — works in the car *and* on the phone, single symmetric code path. Full phrase reference, architecture notes and testing in [AndroidAuto.md](AndroidAuto.md).
+  - Android Auto support for the built-in player, plus voice playback ("Hey Google, play *X* on Music Assistant") via Google Assistant and Gemini App Actions — works in the car *and* on the phone, single symmetric code path. Full phrase reference, architecture notes and testing in [ANDROID-AUTO.md](docs/ANDROID-AUTO.md).
 - iOS-specific:
   - requires iOS 18.5 or later; 
   - native audio playback via AudioQueue (CoreAudio) with support for FLAC, Opus, and PCM;
@@ -46,58 +46,15 @@ Compatibility with Apple CarPlay and Android Auto is a core focus, ensuring you 
   - WebRTC data channel transport for low-latency Sendspin streaming;
   - Apple CarPlay support for built-in player (very early state, a lot of bugs are expected).
 
-## Contributing
-
-The project is in an early stage of development. Any help (especially from designers and iOS developers) is appreciated. To contribute:
-
-1. [Find an issue](https://github.com/music-assistant/mobile-app/issues) to work on - if you've noticed something wrong or missing, please file an issue about it
-2. Ask in the issue if you can work on it - this prevents multiple people from working on an issue at the same time
-3. Submit a PR with "Closes #<issue number>" at the top of the description
-
-### Structure
-
-The project currently supports the iOS and Android targets. Common code is held within a KMP library module (`composeApp`) which the two platform specific app modules then depend on (`androidApp` and `iosApp`).
-
-### Building from source
-
-#### iOS
-
-See [ios_build_instructions.md](ios_build_instructions.md) for a full step-by-step guide covering:
-
-- Required tools and JDK version (JDK 21 LTS required — JDK 25 is not supported)
-- WebRTC framework setup
-- Signing and provisioning configuration
-- Build commands for simulator and physical device
-- Known limitations and troubleshooting
-
-#### Android
-
-To build the app:
-
-```bash
-./gradlew :androidApp:assembleDebug
-```
-
-To build a non-debuggable "release mode" APK for testing performance using your local debug keystore:
-
-```bash
-./gradlew :androidApp:assembleSelfSignedRelease
-```
-
-### Writing/running tests
-
-Tests for shared multiplatform code live in the `composeApp` module's `commonTest` source set. These can be run locally in the JVM for the Android target using `./gradlew :composeApp:testAndroidHostTest`.
-
-Tests for Compose UI code are in the `androidApp` module. This is because [multiplatform Compose testing is currently still experimental](https://kotlinlang.org/docs/multiplatform/compose-test.html) and tests written using the multiplatform approach cannot be easily run in a local JVM yet without the desktop target (which this project doesn't use). The Compose tests can be run with `./gradlew :androidApp:testDebug`.
 ## Want to try it?
 
 Download and install debug APK from latest release on [releases page](https://github.com/music-assistant/kmp-client-app/releases).
 
-*Disclamer: this is debug version of application, and isn't recommended for usage beyond testing purposes!*
+*Disclaimer: this is debug version of application, and isn't recommended for usage beyond testing purposes!*
 
-### Android Auto & Google Assistant
+## Android Auto & Google Assistant
 
-See [Android Auto.md](AndroidAuto.md) for:
+See [ANDROID-AUTO](docs/ANDROID-AUTO.md) for:
 
 - enabling Android Auto with sideloaded debug/self-signed builds (Unknown sources flow);
 - the library browsing layout on the head unit;
