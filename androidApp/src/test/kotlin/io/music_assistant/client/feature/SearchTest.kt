@@ -45,7 +45,7 @@ class SearchTest {
     }
 
     @Test
-    fun `clicking clear results`() {
+    fun `clicking clear clears results`() {
         val album = ServerMediaItemFixtures.album(name = "Blast from Dastardly Past")
         serviceClient.addToLibrary(album)
 
