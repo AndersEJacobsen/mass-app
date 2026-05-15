@@ -20,8 +20,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
-import musicassistantclient.composeapp.generated.resources.*
 import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.common_clear
+import musicassistantclient.composeapp.generated.resources.search_query_label
+import musicassistantclient.composeapp.generated.resources.search_title
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -50,7 +52,12 @@ fun SearchInput(
         trailingIcon = {
             Row {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChanged("") }) {
+                    IconButton(
+                        onClick = {
+                            onQueryChanged("")
+                            onSearchTriggered()
+                        },
+                    ) {
                         Icon(
                             Icons.Default.Clear,
                             contentDescription = stringResource(Res.string.common_clear),

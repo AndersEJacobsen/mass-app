@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performTextInput
 import io.music_assistant.client.data.model.server.ServerMediaItem
 import io.music_assistant.client.support.get
 import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.common_clear
 import musicassistantclient.composeapp.generated.resources.nav_home
 import musicassistantclient.composeapp.generated.resources.nav_library
 import musicassistantclient.composeapp.generated.resources.nav_search
@@ -46,7 +47,18 @@ class SearchPage(composeTestRule: ComposeTestRule) : ComposePage(composeTestRule
         return this
     }
 
+    fun assertNoResults(): SearchPage {
+        composeTestRule.onNodeWithText(Res.string.search_start.get()).assertIsDisplayed()
+        return this
+    }
+
     fun clickOnMedia(item: ServerMediaItem): MediaItemPage {
         return clickOnMedia(item, Res.string.nav_search.get())
+    }
+
+    fun clearQuery(): SearchPage {
+        composeTestRule.onNodeWithContentDescription(Res.string.common_clear.get())
+            .performClick()
+        return this
     }
 }

@@ -45,6 +45,18 @@ class SearchTest {
     }
 
     @Test
+    fun `clicking clear clears results`() {
+        val album = ServerMediaItemFixtures.album(name = "Blast from Dastardly Past")
+        serviceClient.addToLibrary(album)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickSearch()
+            .search("blast")
+            .clearQuery()
+            .assertNoResults()
+    }
+
+    @Test
     fun `search has its own backstack`() {
         val album1 = ServerMediaItemFixtures.album()
         val album2 = ServerMediaItemFixtures.album()
