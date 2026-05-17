@@ -15,15 +15,15 @@ import io.music_assistant.client.R
 import io.music_assistant.client.api.Answer
 import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
-import io.music_assistant.client.data.model.client.AppMediaItem
-import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItem
-import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItemList
+import io.music_assistant.client.data.factory.MediaItemFactory
+import io.music_assistant.client.data.model.client.ImageType
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.QueueOption
 import io.music_assistant.client.data.model.client.SortField
 import io.music_assistant.client.data.model.client.SortOption
 import io.music_assistant.client.data.model.client.SubItemContext
 import io.music_assistant.client.data.model.client.clientSorted
-import io.music_assistant.client.data.model.server.MediaType
-import io.music_assistant.client.data.model.server.QueueOption
+import io.music_assistant.client.data.model.client.items.AppMediaItem
 import io.music_assistant.client.data.model.server.SearchResult
 import io.music_assistant.client.data.model.server.ServerMediaItem
 import io.music_assistant.client.settings.SettingsRepository
@@ -51,6 +51,7 @@ class AutoLibrary(
     private val context: Context,
     private val apiClient: ServiceClient,
     private val settingsRepository: SettingsRepository,
+    private val mediaItemFactory: MediaItemFactory,
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private val searchFlow: MutableStateFlow<Pair<String, MediaBrowserServiceCompat.Result<List<MediaItem>>>?> =
@@ -91,12 +92,7 @@ class AutoLibrary(
                         ),
                     )
                     answer.resultAs<SearchResult>()?.let {
-                        result.sendResult(
-                            it.toAutoMediaItems(
-                                baseUrl,
-                                defaultIconUri,
-                            ),
-                        )
+                        result.sendResult(it.toAutoMediaItems(mediaItemFactory, defaultIconUri))
                     } ?: result.sendResult(null)
                 }
         }
@@ -134,16 +130,13 @@ class AutoLibrary(
         val titles = defaultAutoTabs.toMap()
         val supportedTypes = titles.keys
         val stored = settingsRepository.libraryTabsConfig.value
-        val ordered: List<MediaType> = if (stored == null) {
-            defaultAutoTabs.map { it.first }
-        } else {
-            stored.mapNotNull { pref ->
-                if (!pref.enabled) return@mapNotNull null
-                val tab = runCatching { LibraryViewModel.Tab.valueOf(pref.name) }.getOrNull()
-                    ?: return@mapNotNull null
-                tab.mediaType.takeIf { it in supportedTypes }
-            }
+        val ordered: List<MediaType> = stored?.mapNotNull { pref ->
+            if (!pref.enabled) return@mapNotNull null
+            val tab = runCatching { LibraryViewModel.Tab.valueOf(pref.name) }.getOrNull()
+                ?: return@mapNotNull null
+            tab.mediaType.takeIf { it in supportedTypes }
         }
+            ?: defaultAutoTabs.map { it.first }
         return ordered.map { type -> rootTabItem(titles.getValue(type), MediaIds.tabIdOf(type)) }
     }
 
@@ -290,8 +283,8 @@ class AutoLibrary(
         }
         return apiClient.sendRequest(request)
             .resultAs<List<ServerMediaItem>>()
-            ?.toAppMediaItemList()
-            ?.map { it.toAutoMediaItem(baseUrl, true, defaultIconUri) }
+            ?.let { mediaItemFactory.createList(it) }
+            ?.map { it.toAutoMediaItem(true, defaultIconUri) }
     }
 
     private suspend fun loadSubItems(
@@ -321,11 +314,11 @@ class AutoLibrary(
         }
         val items = apiClient.sendRequest(request)
             .resultAs<List<ServerMediaItem>>()
-            ?.toAppMediaItemList()
+            ?.let { mediaItemFactory.createList(it) }
             ?: return null
         val sorted =
             if (context == SubItemContext.PLAYLIST_TRACKS) items else items.clientSorted(sort)
-        return sorted.map { it.toAutoMediaItem(baseUrl, true, defaultIconUri) }
+        return sorted.map { it.toAutoMediaItem(true, defaultIconUri) }
     }
 
     private fun defaultSortFor(context: SubItemContext): SortOption = when (context) {
@@ -340,9 +333,6 @@ class AutoLibrary(
                 .mapNotNull { it.dataConnectionState as? DataConnectionState.Authenticated }
                 .first()
         } != null
-
-    private val baseUrl: String?
-        get() = apiClient.serverBaseUrl.value
 
     private fun actionsForItem(itemId: String): List<MediaItem> {
         return buildList {
@@ -400,7 +390,7 @@ class AutoLibrary(
             if (!ready) {
                 voiceLog.w {
                     "Server not authenticated within ${WAIT_FOR_AUTHENTICATED_TIMEOUT_MS}ms — " +
-                        "aborting voice playback (query=\"$query\")."
+                            "aborting voice playback (query=\"$query\")."
                 }
                 return@launch
             }
@@ -426,8 +416,8 @@ class AutoLibrary(
                 @Suppress("DEPRECATION")
                 val genreExtra = extras?.getString(MediaStore.EXTRA_MEDIA_GENRE)
                 "searchAndPlay focus=$focus query=\"$query\" queueId=$queueId " +
-                    "extras{artist=$artistExtra album=$albumExtra title=$titleExtra " +
-                    "playlist=$playlistExtra genre=$genreExtra}"
+                        "extras{artist=$artistExtra album=$albumExtra title=$titleExtra " +
+                        "playlist=$playlistExtra genre=$genreExtra}"
             }
             @Suppress("DEPRECATION")
             when (focus) {
@@ -588,8 +578,8 @@ class AutoLibrary(
         }
         voiceLog.i {
             "  → hits: tracks=${sr.tracks.size} artists=${sr.artists.size} " +
-                "albums=${sr.albums.size} playlists=${sr.playlists.size} " +
-                "podcasts=${sr.podcasts.size} radio=${sr.radio.size}"
+                    "albums=${sr.albums.size} playlists=${sr.playlists.size} " +
+                    "podcasts=${sr.podcasts.size} radio=${sr.radio.size}"
         }
         // Track → Artist → Album → Playlist → Podcast → Radio. Artist match expands to
         // shuffled discography; podcast match plays latest episode; everything else
@@ -628,9 +618,10 @@ class AutoLibrary(
     }
 
     private suspend fun playArtistTracksShuffled(artist: ServerMediaItem, queueId: String) {
-        val trackResult = sendLogged("Artist.getTracks item_id=${artist.itemId} provider=${artist.provider}") {
-            Request.Artist.getTracks(artist.itemId, artist.provider)
-        }
+        val trackResult =
+            sendLogged("Artist.getTracks item_id=${artist.itemId} provider=${artist.provider}") {
+                Request.Artist.getTracks(artist.itemId, artist.provider)
+            }
         val trackUris = trackResult?.resultAs<List<ServerMediaItem>>()
             ?.mapNotNull { it.uri }
             ?.shuffled()
@@ -640,7 +631,7 @@ class AutoLibrary(
             if (it.isNotEmpty()) {
                 voiceLog.i {
                     "Artist.getTracks returned empty — falling back to artist URI ${artist.uri}. " +
-                        "Server expansion of artist URIs is provider-dependent."
+                            "Server expansion of artist URIs is provider-dependent."
                 }
             }
         }
@@ -652,9 +643,10 @@ class AutoLibrary(
     }
 
     private suspend fun playPodcastLatest(podcast: ServerMediaItem, queueId: String) {
-        val episodes = sendLogged("Podcast.getEpisodes item_id=${podcast.itemId} provider=${podcast.provider}") {
-            Request.Podcast.getEpisodes(podcast.itemId, podcast.provider)
-        }?.resultAs<List<ServerMediaItem>>()
+        val episodes =
+            sendLogged("Podcast.getEpisodes item_id=${podcast.itemId} provider=${podcast.provider}") {
+                Request.Podcast.getEpisodes(podcast.itemId, podcast.provider)
+            }?.resultAs<List<ServerMediaItem>>()
         voiceLog.i { "  → episode count: ${episodes?.size ?: 0}" }
         val latestUri = episodes?.maxByOrNull { it.metadata?.releaseDate.orEmpty() }?.uri
             ?: podcast.uri
@@ -846,11 +838,6 @@ internal data class ParentRef(
     val type: MediaType,
     val provider: String,
 ) {
-    // Matches the existing 4-part `itemId__uri__mediaType__provider` encoding
-    // produced in toMediaDescription, so parents discovered via drill-down IDs
-    // stay round-trip-safe.
-    fun encode(): String = "${itemId}__${uri}__${type}__$provider"
-
     fun subItemContext(): SubItemContext? = when (type) {
         MediaType.ARTIST -> SubItemContext.ARTIST_ALBUMS
         MediaType.ALBUM -> SubItemContext.ALBUM_TRACKS
@@ -875,7 +862,7 @@ internal data class ParentRef(
 }
 
 private fun SearchResult.toAutoMediaItems(
-    serverUrl: String?,
+    factory: MediaItemFactory,
     defaultIconUri: Uri,
 ): List<MediaItem> = buildList {
     mapOf(
@@ -887,26 +874,25 @@ private fun SearchResult.toAutoMediaItems(
         podcasts to "Podcasts",
         radio to "Radio stations",
     ).forEach { (items, category) ->
-        addAll(items.mapNotNull { it.toAutoMediaItem(serverUrl, true, defaultIconUri, category) })
+        addAll(items.mapNotNull { it.toAutoMediaItem(factory, true, defaultIconUri, category) })
     }
 }
 
 private fun ServerMediaItem.toAutoMediaItem(
-    serverUrl: String?,
+    factory: MediaItemFactory,
     allowBrowse: Boolean,
     defaultIconUri: Uri,
     category: String? = null,
 ): MediaItem? =
-    toAppMediaItem()?.toAutoMediaItem(serverUrl, allowBrowse, defaultIconUri, category)
+    factory.create(this)?.toAutoMediaItem(allowBrowse, defaultIconUri, category)
 
 private fun AppMediaItem.toAutoMediaItem(
-    serverUrl: String?,
     allowBrowse: Boolean,
     defaultIconUri: Uri,
     category: String? = null,
 ): MediaItem {
     return MediaItem(
-        toMediaDescription(serverUrl, defaultIconUri, category),
+        toMediaDescription(defaultIconUri, category),
         if (allowBrowse && mediaType.isBrowsableInAuto()) {
             MediaItem.FLAG_BROWSABLE
         } else {
@@ -927,7 +913,6 @@ fun @receiver:DrawableRes Int.toUri(context: Context): Uri = Uri.parse(
 )
 
 fun AppMediaItem.toMediaDescription(
-    serverUrl: String?,
     defaultIconUri: Uri,
     category: String? = null,
 ): MediaDescriptionCompat {
@@ -936,7 +921,10 @@ fun AppMediaItem.toMediaDescription(
         .setTitle((if (favorite == true) "♥ " else "") + displayName)
         .setSubtitle(subtitle)
         .setMediaUri(uri?.let { Uri.parse(it) })
-        .setIconUri(imageInfo?.url(serverUrl)?.let { Uri.parse(it) } ?: defaultIconUri)
+        .setIconUri(
+            image(ImageType.THUMB)?.url?.let { Uri.parse(it) }
+            ?: defaultIconUri,
+        )
         .setExtras(
             Bundle().apply {
                 putString(

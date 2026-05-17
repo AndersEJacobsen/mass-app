@@ -67,12 +67,12 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
-import io.music_assistant.client.data.model.client.AppMediaItem
 import io.music_assistant.client.data.model.client.AppMediaItemFixtures
 import io.music_assistant.client.data.model.client.PlayerData
 import io.music_assistant.client.data.model.client.PlayerDataFixtures
 import io.music_assistant.client.data.model.client.PlayerDataFixtures.toQueue
 import io.music_assistant.client.data.model.client.PlayerDataFixtures.toQueueTrack
+import io.music_assistant.client.data.model.client.items.AppMediaItem
 import io.music_assistant.client.player.sendspin.SendspinState
 import io.music_assistant.client.ui.alphaOn
 import io.music_assistant.client.ui.compose.common.DataState
@@ -113,7 +113,6 @@ internal fun PlayersPager(
     modifier: Modifier = Modifier,
     playerPagerState: PagerState,
     playersState: HomeScreenViewModel.PlayersState.Data,
-    serverUrl: String?,
     simplePlayerAction: (String, PlayerAction) -> Unit,
     playerAction: (PlayerData, PlayerAction) -> Unit,
     onFavoriteClick: (AppMediaItem) -> Unit,
@@ -232,7 +231,6 @@ internal fun PlayersPager(
                             onSelectPlayer = onSelectPlayer,
                             onGroupButton = onGroupButton,
                             onDspButton = onDspButton.takeIf { !player.player.isGroup },
-                            serverUrl = serverUrl,
                             playerAction = playerAction,
                             onFavoriteClick = onFavoriteClick,
                             onClose = onClose,
@@ -252,7 +250,7 @@ internal fun PlayersPager(
                 }
                 player.parentBind?.let {
                     BoundPlayerInfo(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.matchParentSize(),
                         playerName = player.player.name,
                         parent = it,
                         moveToPlayer = moveToPlayer,
@@ -264,7 +262,7 @@ internal fun PlayersPager(
 }
 
 @Composable
-fun BoundPlayerInfo(
+private fun BoundPlayerInfo(
     modifier: Modifier,
     playerName: String,
     parent: PlayerData.ParentBind,
@@ -298,7 +296,6 @@ private fun ExpandedPlayerPage(
     onSelectPlayer: () -> Unit,
     onGroupButton: () -> Unit,
     onDspButton: (() -> Unit)?,
-    serverUrl: String?,
     playerAction: (PlayerData, PlayerAction) -> Unit,
     onFavoriteClick: (AppMediaItem) -> Unit,
     onClose: () -> Unit,
@@ -578,7 +575,6 @@ private fun ExpandedPlayerPage(
                         isQueueExpanded = isQueueExpanded,
                         onQueueExpandedSwitch = { onExpandQueue(!isQueueExpanded) },
                         onGoToLibrary = onClose,
-                        serverUrl = serverUrl,
                         queueAction = queueAction,
                         tint = colors.controlTint,
                         isCurrentPage = isCurrentPage,
@@ -600,7 +596,6 @@ private fun ExpandedPlayerPage(
                     isCurrentPage = isCurrentPage,
                     contentPadding = contentPadding,
                     queueAction = queueAction,
-                    serverUrl = serverUrl,
                 )
             }
         }
@@ -760,7 +755,6 @@ fun ExpandedPlayerPagePreview() {
             onSelectPlayer = {},
             onGroupButton = {},
             onDspButton = null,
-            serverUrl = null,
             playerAction = { _, _ -> },
             onFavoriteClick = {},
             onClose = {},
@@ -797,7 +791,6 @@ fun ExpandedPlayerPageMediumScreenPreview() {
             onSelectPlayer = {},
             onGroupButton = {},
             onDspButton = null,
-            serverUrl = null,
             playerAction = { _, _ -> },
             onFavoriteClick = {},
             onClose = {},
@@ -834,7 +827,6 @@ fun ExpandedPlayerPageExpandedScreenPreview() {
             onSelectPlayer = {},
             onGroupButton = {},
             onDspButton = null,
-            serverUrl = null,
             playerAction = { _, _ -> },
             onFavoriteClick = {},
             onClose = {},
@@ -871,7 +863,6 @@ fun ExpandedPlayerPageLargeScreenPreview() {
             onSelectPlayer = {},
             onGroupButton = {},
             onDspButton = null,
-            serverUrl = null,
             playerAction = { _, _ -> },
             onFavoriteClick = {},
             onClose = {},

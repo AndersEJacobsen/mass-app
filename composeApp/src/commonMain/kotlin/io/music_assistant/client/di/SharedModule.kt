@@ -5,6 +5,10 @@ import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.auth.AuthenticationManager
 import io.music_assistant.client.data.LocalPlayerRepository
 import io.music_assistant.client.data.MainDataSource
+import io.music_assistant.client.data.factory.MediaItemFactory
+import io.music_assistant.client.data.factory.PlayerFactory
+import io.music_assistant.client.data.factory.QueueFactory
+import io.music_assistant.client.data.repository.MediaItemRepository
 import io.music_assistant.client.logging.LogSharer
 import io.music_assistant.client.player.MediaPlayerController
 import io.music_assistant.client.player.sendspin.SendspinClientFactory
@@ -43,18 +47,22 @@ fun sharedModule(serviceClientConstructor: (SettingsRepository) -> ServiceClient
         singleOf(::MediaPlayerController)  // Used by MainDataSource for Sendspin
         singleOf(::SendspinClientFactory)   // Factory for creating Sendspin clients
         singleOf(::LocalPlayerRepository)   // Optimistic local player state
+        singleOf(::MediaItemFactory)        // Stateless DTO → domain mapper
+        singleOf(::PlayerFactory)           // Stateless DTO → domain mapper
+        singleOf(::QueueFactory)            // Stateless DTO → domain mapper (depends on MediaItemFactory)
+        singleOf(::MediaItemRepository)     // Server DTO/event → client model boundary for UI
         singleOf(::MainDataSource)          // Singleton - held by foreground service
         singleOf(::DominantColorViewModel)  // Singleton - app-wide art-color cache
         viewModelOf(::ThemeViewModel)
-        factory { ActionsViewModel(get(), get()) }
+        factory { ActionsViewModel(get(), get(), get()) }
         factory { SettingsViewModel(get(), get(), get()) }
         factory { AuthenticationViewModel(get(), get()) }
         single { LibraryNavCoordinator() }
-        factory { LibraryViewModel(get(), get(), get(), get()) }
-        factory { ItemDetailsViewModel(get(), get(), get()) }
+        factory { LibraryViewModel(get(), get(), get(), get(), get()) }
+        factory { ItemDetailsViewModel(get(), get(), get(), get()) }
         factory { DspSettingsViewModel(get()) }
-        factory { HomeScreenViewModel(get(), get(), get()) }
-        factory { SearchViewModel(get(), get()) }
+        factory { HomeScreenViewModel(get(), get(), get(), get()) }
+        factory { SearchViewModel(get(), get(), get()) }
     }
 
 /**

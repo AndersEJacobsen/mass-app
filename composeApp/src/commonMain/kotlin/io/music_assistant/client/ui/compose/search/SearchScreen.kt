@@ -36,9 +36,17 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.music_assistant.client.data.model.client.AppMediaItem
-import io.music_assistant.client.data.model.server.MediaType
-import io.music_assistant.client.data.model.server.QueueOption
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.QueueOption
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.Podcast
+import io.music_assistant.client.data.model.client.items.RadioStation
+import io.music_assistant.client.data.model.client.items.Track
 import io.music_assistant.client.settings.ViewMode
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.ToastHost
@@ -74,7 +82,6 @@ fun SearchScreen(
     contentPadding: PaddingValues,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val serverUrl by viewModel.serverUrl.collectAsStateWithLifecycle(null)
     val toastState = rememberToastState()
 
     LaunchedEffect(Unit) {
@@ -101,15 +108,14 @@ fun SearchScreen(
     ) {
         SearchContent(
             state = state,
-            serverUrl = serverUrl,
             toastState = toastState,
             onItemClick = { item ->
                 when (item) {
-                    is AppMediaItem.Artist,
-                    is AppMediaItem.Album,
-                    is AppMediaItem.Playlist,
-                    is AppMediaItem.Podcast,
-                    is AppMediaItem.Audiobook,
+                    is Artist,
+                    is Album,
+                    is Playlist,
+                    is Podcast,
+                    is Audiobook,
                         -> {
                         onNavigateToItem(item.itemId, item.mediaType, item.provider)
                     }
@@ -185,7 +191,6 @@ private fun SearchTopBar(
 @Composable
 private fun SearchContent(
     state: SearchViewModel.State,
-    serverUrl: String?,
     toastState: ToastState,
     onItemClick: (AppMediaItem) -> Unit,
     onPlayClick: (AppMediaItem, QueueOption, Boolean) -> Unit,
@@ -258,8 +263,7 @@ private fun SearchContent(
                                 key = { "${it.mediaType}_${it.provider}_${it.itemId}" },
                             ) { item ->
                                 when (item) {
-                                    is AppMediaItem.Track -> TrackWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Track -> TrackWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onPlayOption = onPlayClick,
@@ -267,18 +271,7 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.Artist -> ArtistWithMenu(
-                                        serverUrl = serverUrl,
-                                        viewMode = ViewMode.LIST,
-                                        item = item,
-                                        onNavigateClick = onItemClick,
-                                        onPlayOption = onPlayClick,
-                                        libraryActions = libraryActions,
-                                        providerIconFetcher = providerIconFetcher,
-                                    )
-
-                                    is AppMediaItem.Album -> AlbumWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Artist -> ArtistWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onNavigateClick = onItemClick,
@@ -287,8 +280,7 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.Playlist -> PlaylistWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Album -> AlbumWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onNavigateClick = onItemClick,
@@ -297,8 +289,7 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.Podcast -> PodcastWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Playlist -> PlaylistWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onNavigateClick = onItemClick,
@@ -307,8 +298,7 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.Audiobook -> AudiobookWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Podcast -> PodcastWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onNavigateClick = onItemClick,
@@ -317,8 +307,16 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.RadioStation -> RadioWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Audiobook -> AudiobookWithMenu(
+                                        viewMode = ViewMode.LIST,
+                                        item = item,
+                                        onNavigateClick = onItemClick,
+                                        onPlayOption = onPlayClick,
+                                        libraryActions = libraryActions,
+                                        providerIconFetcher = providerIconFetcher,
+                                    )
+
+                                    is RadioStation -> RadioWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onPlayOption = onPlayClick,
@@ -326,8 +324,7 @@ private fun SearchContent(
                                         providerIconFetcher = providerIconFetcher,
                                     )
 
-                                    is AppMediaItem.Genre -> GenreWithMenu(
-                                        serverUrl = serverUrl,
+                                    is Genre -> GenreWithMenu(
                                         viewMode = ViewMode.LIST,
                                         item = item,
                                         onNavigateClick = onItemClick,
@@ -354,7 +351,6 @@ private fun SearchContent(
                                     if (items.isNotEmpty()) {
                                         item(key = stringTitle, contentType = "category") {
                                             CategoryRow(
-                                                serverUrl = serverUrl,
                                                 title = stringTitle,
                                                 rowItemType = null,
                                                 onNavigateClick = onItemClick,

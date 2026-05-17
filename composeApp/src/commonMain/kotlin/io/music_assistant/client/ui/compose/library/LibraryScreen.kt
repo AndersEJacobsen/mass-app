@@ -50,11 +50,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Plus
-import io.music_assistant.client.data.model.client.AppMediaItem
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.QueueOption
 import io.music_assistant.client.data.model.client.SortConfig
 import io.music_assistant.client.data.model.client.SortOption
-import io.music_assistant.client.data.model.server.MediaType
-import io.music_assistant.client.data.model.server.QueueOption
+import io.music_assistant.client.data.model.client.items.AppMediaItem
 import io.music_assistant.client.settings.ViewMode
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.SortChip
@@ -99,11 +99,10 @@ fun LibraryScreen(
     val viewModel: LibraryViewModel = koinViewModel()
     val actionsViewModel: ActionsViewModel = koinInject()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val serverUrl by viewModel.serverUrl.collectAsStateWithLifecycle(null)
     val toastState = rememberToastState()
 
     LaunchedEffect(Unit) {
-        viewModel.applyInitialTabIfNeeded(LibraryViewModel.tabFor(initialTabType))
+        viewModel.applyInitialTabIfNeeded(initialTabType)
     }
 
     // Collect toasts
@@ -147,7 +146,6 @@ fun LibraryScreen(
             contentPadding = contentPadding,
             selectedTab = selectedTab,
             showCreatePlaylistDialog = state.showCreatePlaylistDialog,
-            serverUrl = serverUrl,
             toastState = toastState,
             onNavigateClick = onNavigateClick,
             onPlayClick = viewModel::onPlayClick,
@@ -296,7 +294,6 @@ private fun Library(
     modifier: Modifier = Modifier,
     selectedTab: LibraryViewModel.TabState,
     showCreatePlaylistDialog: Boolean,
-    serverUrl: String?,
     toastState: ToastState,
     onNavigateClick: (AppMediaItem) -> Unit,
     onPlayClick: (AppMediaItem, QueueOption, Boolean) -> Unit,
@@ -319,7 +316,6 @@ private fun Library(
             Box(modifier = Modifier.fillMaxSize()) {
                 TabContent(
                     tabState = selectedTab,
-                    serverUrl = serverUrl,
                     onNavigateClick = onNavigateClick,
                     onPlayClick = onPlayClick,
                     onCreatePlaylistClick = onCreatePlaylistClick,
@@ -397,7 +393,6 @@ private fun CreatePlaylistDialog(
 @Composable
 private fun TabContent(
     tabState: LibraryViewModel.TabState,
-    serverUrl: String?,
     onNavigateClick: (AppMediaItem) -> Unit,
     onPlayClick: (AppMediaItem, QueueOption, Boolean) -> Unit,
     onCreatePlaylistClick: () -> Unit,
@@ -477,7 +472,6 @@ private fun TabContent(
                             AdaptiveMediaGrid(
                                 modifier = Modifier.fillMaxSize(),
                                 items = items,
-                                serverUrl = serverUrl,
                                 isLoadingMore = tabState.isLoadingMore,
                                 hasMore = tabState.hasMore,
                                 viewMode = tabState.viewMode,

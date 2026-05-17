@@ -5,15 +5,18 @@ import androidx.lifecycle.viewModelScope
 import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.data.MainDataSource
-import io.music_assistant.client.data.model.client.AppMediaItem
-import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItem
-import io.music_assistant.client.data.model.server.MediaType
-import io.music_assistant.client.data.model.server.QueueOption
-import io.music_assistant.client.data.model.server.SearchResult
-import io.music_assistant.client.data.model.server.ServerMediaItem
-import io.music_assistant.client.data.model.server.events.MediaItemAddedEvent
-import io.music_assistant.client.data.model.server.events.MediaItemDeletedEvent
-import io.music_assistant.client.data.model.server.events.MediaItemUpdatedEvent
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.QueueOption
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.Podcast
+import io.music_assistant.client.data.model.client.items.RadioStation
+import io.music_assistant.client.data.model.client.items.Track
+import io.music_assistant.client.data.repository.MediaItemRepository
 import io.music_assistant.client.ui.Timings
 import io.music_assistant.client.ui.compose.common.DataState
 import kotlinx.coroutines.FlowPreview
@@ -42,9 +45,8 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 class SearchViewModel(
     private val apiClient: ServiceClient,
     private val mainDataSource: MainDataSource,
+    private val mediaItemRepository: MediaItemRepository,
 ) : ViewModel() {
-    val serverUrl = apiClient.serverBaseUrl
-
     val searchJob = AtomicReference<Job?>(null)
 
     private val searchTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -87,19 +89,10 @@ class SearchViewModel(
                 }
         }
 
-        // Listen to real-time events for track updates
+        // Listen to real-time library changes; refresh any tracks already shown.
         viewModelScope.launch {
-            apiClient.events.collect { event ->
-                when (event) {
-                    is MediaItemUpdatedEvent,
-                    is MediaItemAddedEvent,
-                    is MediaItemDeletedEvent,
-                        -> {
-                        event.data?.let { updateSearchResultsIfNeeded(it) }
-                    }
-
-                    else -> Unit
-                }
+            mediaItemRepository.itemChanges.collect { change ->
+                (change.item as? Track)?.let { updateSearchResultsIfNeeded(it) }
             }
         }
     }
@@ -143,7 +136,7 @@ class SearchViewModel(
                             media = listOf(mediaUri),
                             queueOrPlayerId = queueId,
                             option = option,
-                            radioMode = radio && track !is AppMediaItem.Genre,
+                            radioMode = radio && track !is Genre,
                         ),
                     )
                 }
@@ -151,15 +144,11 @@ class SearchViewModel(
         }
     }
 
-    private fun updateSearchResultsIfNeeded(serverItem: ServerMediaItem) {
+    private fun updateSearchResultsIfNeeded(changed: Track) {
         val resultsData = (_state.value.resultsState as? DataState.Data)?.data
         if (resultsData != null) {
             val updatedTracks = resultsData.tracks.map { track ->
-                if (track.hasAnyMappingFrom(serverItem)) {
-                    serverItem.toAppMediaItem() as? AppMediaItem.Track ?: track
-                } else {
-                    track
-                }
+                if (track.hasAnyMappingFrom(changed)) changed else track
             }
             _state.update {
                 it.copy(resultsState = DataState.Data(resultsData.copy(tracks = updatedTracks)))
@@ -172,7 +161,7 @@ class SearchViewModel(
             viewModelScope.launch {
                 _state.update { it.copy(resultsState = DataState.Loading()) }
 
-                val result = apiClient.sendRequest(
+                val result = mediaItemRepository.search(
                     Request.Library.search(
                         query = searchState.query,
                         mediaTypes = searchState.selectedMediaTypes,
@@ -181,8 +170,17 @@ class SearchViewModel(
                     ),
                 )
                 if (isActive) {
-                    result.getOrNull()?.resultAs<SearchResult>()?.let { search ->
-                        val results = search.toAppSearchResults()
+                    result.getOrNull()?.let { data ->
+                        val results = SearchResults(
+                            artists = data.artists,
+                            albums = data.albums,
+                            tracks = data.tracks,
+                            playlists = data.playlists,
+                            audiobooks = data.audiobooks,
+                            podcasts = data.podcasts,
+                            radios = data.radios,
+                            genres = data.genres,
+                        )
                         if (isActive) {
                             _state.update { it.copy(resultsState = DataState.Data(results)) }
                         }
@@ -213,14 +211,14 @@ class SearchViewModel(
     )
 
     data class SearchResults(
-        val artists: List<AppMediaItem.Artist>,
-        val albums: List<AppMediaItem.Album>,
-        val tracks: List<AppMediaItem.Track>,
-        val playlists: List<AppMediaItem.Playlist>,
-        val audiobooks: List<AppMediaItem.Audiobook>,
-        val podcasts: List<AppMediaItem.Podcast>,
-        val radios: List<AppMediaItem.RadioStation>,
-        val genres: List<AppMediaItem.Genre>,
+        val artists: List<Artist>,
+        val albums: List<Album>,
+        val tracks: List<Track>,
+        val playlists: List<Playlist>,
+        val audiobooks: List<Audiobook>,
+        val podcasts: List<Podcast>,
+        val radios: List<RadioStation>,
+        val genres: List<Genre>,
     ) {
         val nonEmptyLists = listOf(
             Item(Res.string.media_type_tracks, tracks),
@@ -238,15 +236,4 @@ class SearchViewModel(
             val items: List<AppMediaItem>,
         )
     }
-
-    private fun SearchResult.toAppSearchResults() = SearchResults(
-        artists = artists.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Artist },
-        albums = albums.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Album },
-        tracks = tracks.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Track },
-        playlists = playlists.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Playlist },
-        audiobooks = audiobooks.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Audiobook },
-        podcasts = podcasts.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Podcast },
-        radios = radio.mapNotNull { it.toAppMediaItem() as? AppMediaItem.RadioStation },
-        genres = genres.mapNotNull { it.toAppMediaItem() as? AppMediaItem.Genre },
-    )
 }

@@ -1,8 +1,9 @@
 package io.music_assistant.client.data.model.client
 
 import io.music_assistant.client.data.model.client.PlayerData.ChildBind
-import io.music_assistant.client.data.model.server.PlayerType
-import io.music_assistant.client.data.model.server.RepeatMode
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.PlayableItem
+import io.music_assistant.client.data.model.client.items.Track
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.utils.UniqueIdGenerator
 
@@ -119,7 +120,7 @@ object PlayerDataFixtures {
         return PlayerMedia(
             title = displayName,
             artist = subtitle,
-            album = (this as? AppMediaItem.Track)?.album?.displayName,
+            album = (this as? Track)?.album?.displayName,
             imageUrl = null,
             duration = duration,
             queueId = queueId,

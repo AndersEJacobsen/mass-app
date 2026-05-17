@@ -5,10 +5,9 @@ import androidx.lifecycle.viewModelScope
 import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.data.MainDataSource
-import io.music_assistant.client.data.model.client.AppMediaItem
-import io.music_assistant.client.data.model.client.AppMediaItem.Companion.toAppMediaItemList
-import io.music_assistant.client.data.model.server.ServerMediaItem
-import io.music_assistant.client.utils.resultAs
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.repository.MediaItemRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -20,6 +19,7 @@ import kotlinx.coroutines.launch
 class ActionsViewModel(
     private val apiClient: ServiceClient,
     private val dataSource: MainDataSource,
+    private val mediaItemRepository: MediaItemRepository,
 ) : ViewModel() {
     private val _toasts = MutableSharedFlow<String>()
     val toasts = _toasts.asSharedFlow()
@@ -36,7 +36,7 @@ class ActionsViewModel(
                 )
             } else {
                 item.uri?.let {
-                    apiClient.sendRequest(Request.Library.add(item.uri))
+                    apiClient.sendRequest(Request.Library.add(it))
                 }
             }
         }
@@ -59,18 +59,16 @@ class ActionsViewModel(
         }
     }
 
-    suspend fun getEditablePlaylists(): List<AppMediaItem.Playlist> {
-        val result = apiClient.sendRequest(Request.Playlist.listLibrary())
-        return result.resultAs<List<ServerMediaItem>>()
-            ?.toAppMediaItemList()
-            ?.filterIsInstance<AppMediaItem.Playlist>()
+    suspend fun getEditablePlaylists(): List<Playlist> =
+        mediaItemRepository.fetchMediaItems(Request.Playlist.listLibrary())
+            .getOrNull()
+            ?.filterIsInstance<Playlist>()
             ?.filter { it.isEditable }
             ?: emptyList()
-    }
 
     fun addToPlaylist(
         mediaItem: AppMediaItem,
-        playlist: AppMediaItem.Playlist,
+        playlist: Playlist,
     ) {
         viewModelScope.launch {
             val itemUri = mediaItem.uri
@@ -140,8 +138,8 @@ class ActionsViewModel(
     fun getProviderIcon(provider: String) = dataSource.providerIcon(provider)
 
     data class PlaylistActions(
-        val onLoadPlaylists: suspend () -> List<AppMediaItem.Playlist>,
-        val onAddToPlaylist: (AppMediaItem, AppMediaItem.Playlist) -> Unit,
+        val onLoadPlaylists: suspend () -> List<Playlist>,
+        val onAddToPlaylist: (AppMediaItem, Playlist) -> Unit,
     )
 
     data class LibraryActions(

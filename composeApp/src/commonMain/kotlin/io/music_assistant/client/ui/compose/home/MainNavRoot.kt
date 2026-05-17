@@ -37,9 +37,15 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import coil3.compose.LocalPlatformContext
-import io.music_assistant.client.data.model.client.AppMediaItem
 import io.music_assistant.client.data.model.client.PlayerData
-import io.music_assistant.client.data.model.server.MediaType
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.Podcast
+import io.music_assistant.client.data.model.client.items.RecommendationFolder
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.DominantColorViewModel
 import io.music_assistant.client.ui.compose.common.ExtractedColorsFetcher
@@ -92,7 +98,6 @@ fun MainNavigationRoot(
     }
 
     val recommendationsState = viewModel.recommendationsState.collectAsStateWithLifecycle()
-    val serverUrl by viewModel.serverUrl.collectAsStateWithLifecycle()
     val playersState by viewModel.playersState.collectAsStateWithLifecycle()
     // Single pager state used across all views
     val data = playersState as? HomeScreenViewModel.PlayersState.Data
@@ -147,7 +152,7 @@ fun MainNavigationRoot(
 
     val backStacks = listOf(
         rememberMainNavBackStack(MainNav.Landing),
-        rememberMainNavBackStack(MainNav.Library(MediaType.ARTIST)),
+        rememberMainNavBackStack(MainNav.Library(null)),
         rememberMainNavBackStack(MainNav.Search),
     )
     val multiBackStack = remember { MultiBackStack(backStacks) }
@@ -192,7 +197,6 @@ fun MainNavigationRoot(
                         Players(
                             playerPagerState = playerPagerState,
                             state = playersState,
-                            serverUrl = serverUrl,
                             homeScreenViewModel = viewModel,
                             actionsViewModel = actionsViewModel,
                             expanded = expanded,
@@ -216,7 +220,6 @@ fun MainNavigationRoot(
                             connectionState,
                             dataState,
                             hiddenFolderIds,
-                            serverUrl,
                             multiBackStack,
                             viewModel,
                             playlistActions,
@@ -238,9 +241,8 @@ fun MainNavigationRoot(
 private fun mainNavEntryProvider(
     contentPadding: PaddingValues,
     connectionState: SessionState,
-    dataState: DataState<List<AppMediaItem.RecommendationFolder>>,
+    dataState: DataState<List<RecommendationFolder>>,
     hiddenFolderIds: Set<String>,
-    serverUrl: String?,
     multiBackStack: MultiBackStack<NavKey>,
     viewModel: HomeScreenViewModel,
     playlistActions: ActionsViewModel.PlaylistActions,
@@ -255,15 +257,14 @@ private fun mainNavEntryProvider(
                 contentPadding = contentPadding,
                 connectionState = connectionState,
                 dataState = dataState,
-                serverUrl = serverUrl,
                 onNavigateClick = { item ->
                     when (item) {
-                        is AppMediaItem.Artist,
-                        is AppMediaItem.Album,
-                        is AppMediaItem.Playlist,
-                        is AppMediaItem.Podcast,
-                        is AppMediaItem.Audiobook,
-                        is AppMediaItem.Genre,
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is Genre,
                         -> {
                             multiBackStack.add(
                                 MainNav.ItemDetails(
@@ -301,12 +302,12 @@ private fun mainNavEntryProvider(
                 initialTabType = it.type,
                 onNavigateClick = { item ->
                     when (item) {
-                        is AppMediaItem.Artist,
-                        is AppMediaItem.Album,
-                        is AppMediaItem.Playlist,
-                        is AppMediaItem.Podcast,
-                        is AppMediaItem.Audiobook,
-                        is AppMediaItem.Genre,
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is Genre,
                         -> {
                             multiBackStack.add(
                                 MainNav.ItemDetails(
@@ -363,7 +364,6 @@ private fun mainNavEntryProvider(
 private fun Players(
     playerPagerState: PagerState,
     state: HomeScreenViewModel.PlayersState,
-    serverUrl: String?,
     homeScreenViewModel: HomeScreenViewModel,
     actionsViewModel: ActionsViewModel,
     expanded: Boolean,
@@ -422,7 +422,6 @@ private fun Players(
         PlayersPager(
             playerPagerState = playerPagerState,
             playersState = state,
-            serverUrl = serverUrl,
             simplePlayerAction = simplePlayerAction,
             playerAction = playerAction,
             onFavoriteClick = onFavoriteClick,

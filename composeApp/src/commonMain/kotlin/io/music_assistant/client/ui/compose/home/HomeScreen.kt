@@ -40,9 +40,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import io.music_assistant.client.data.model.client.AppMediaItem
-import io.music_assistant.client.data.model.server.MediaType
-import io.music_assistant.client.data.model.server.QueueOption
+import io.music_assistant.client.data.model.client.MediaType
+import io.music_assistant.client.data.model.client.QueueOption
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.Artist
+import io.music_assistant.client.data.model.client.items.Audiobook
+import io.music_assistant.client.data.model.client.items.Genre
+import io.music_assistant.client.data.model.client.items.Playlist
+import io.music_assistant.client.data.model.client.items.Podcast
+import io.music_assistant.client.data.model.client.items.PodcastEpisode
+import io.music_assistant.client.data.model.client.items.RadioStation
+import io.music_assistant.client.data.model.client.items.RecommendationFolder
+import io.music_assistant.client.data.model.client.items.Track
 import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.items.AlbumWithMenu
 import io.music_assistant.client.ui.compose.common.items.ArtistWithMenu
@@ -66,8 +76,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
     connectionState: SessionState,
-    dataState: DataState<List<AppMediaItem.RecommendationFolder>>,
-    serverUrl: String?,
+    dataState: DataState<List<RecommendationFolder>>,
     onNavigateClick: (AppMediaItem) -> Unit,
     onPlayClick: ((AppMediaItem, QueueOption, Boolean) -> Unit),
     onLibraryItemClick: (MediaType?) -> Unit,
@@ -89,15 +98,15 @@ fun HomeScreen(
         if (dataState is DataState.Data) {
             dataState.data.filter {
                 it.items?.any { item ->
-                    item is AppMediaItem.Track ||
-                            item is AppMediaItem.Artist ||
-                            item is AppMediaItem.Album ||
-                            item is AppMediaItem.Playlist ||
-                            item is AppMediaItem.Audiobook ||
-                            item is AppMediaItem.Podcast ||
-                            item is AppMediaItem.PodcastEpisode ||
-                            item is AppMediaItem.RadioStation ||
-                            item is AppMediaItem.Genre
+                    item is Track ||
+                            item is Artist ||
+                            item is Album ||
+                            item is Playlist ||
+                            item is Audiobook ||
+                            item is Podcast ||
+                            item is PodcastEpisode ||
+                            item is RadioStation ||
+                            item is Genre
                 } == true
             }
         } else {
@@ -155,7 +164,6 @@ fun HomeScreen(
                 ) { row ->
                     Box(modifier = Modifier.fillMaxWidth()) {
                         CategoryRow(
-                            serverUrl = serverUrl,
                             title = row.displayName,
                             rowItemType = row.rowItemType,
                             onNavigateClick = onNavigateClick,
@@ -242,7 +250,6 @@ private fun LandingPageTopBar(
 
 @Composable
 fun CategoryRow(
-    serverUrl: String?,
     title: String,
     rowItemType: MediaType?,
     onNavigateClick: (AppMediaItem) -> Unit,
@@ -289,15 +296,15 @@ fun CategoryRow(
                 items = mediaItems,
                 key = { item ->
                     when (item) {
-                        is AppMediaItem.Track,
-                        is AppMediaItem.Artist,
-                        is AppMediaItem.Album,
-                        is AppMediaItem.Playlist,
-                        is AppMediaItem.Audiobook,
-                        is AppMediaItem.Podcast,
-                        is AppMediaItem.PodcastEpisode,
-                        is AppMediaItem.RadioStation,
-                        is AppMediaItem.Genre,
+                        is Track,
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Audiobook,
+                        is Podcast,
+                        is PodcastEpisode,
+                        is RadioStation,
+                        is Genre,
                         -> "${item::class.simpleName}_${item.itemId}"
 
                         else -> item.hashCode()
@@ -305,68 +312,62 @@ fun CategoryRow(
                 },
                 contentType = { item ->
                     when (item) {
-                        is AppMediaItem.Track -> "Track"
-                        is AppMediaItem.Artist -> "Artist"
-                        is AppMediaItem.Album -> "Album"
-                        is AppMediaItem.Playlist -> "Playlist"
-                        is AppMediaItem.Audiobook -> "Audiobook"
-                        is AppMediaItem.Podcast -> "Podcast"
-                        is AppMediaItem.PodcastEpisode -> "Episode"
-                        is AppMediaItem.RadioStation -> "RadioStation"
-                        is AppMediaItem.Genre -> "Genre"
+                        is Track -> "Track"
+                        is Artist -> "Artist"
+                        is Album -> "Album"
+                        is Playlist -> "Playlist"
+                        is Audiobook -> "Audiobook"
+                        is Podcast -> "Podcast"
+                        is PodcastEpisode -> "Episode"
+                        is RadioStation -> "RadioStation"
+                        is Genre -> "Genre"
                         else -> "Unknown"
                     }
                 },
             ) { item ->
                 when (item) {
-                    is AppMediaItem.Artist -> ArtistWithMenu(
+                    is Artist -> ArtistWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Album -> AlbumWithMenu(
+                    is Album -> AlbumWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Playlist -> PlaylistWithMenu(
+                    is Playlist -> PlaylistWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Podcast -> PodcastWithMenu(
+                    is Podcast -> PodcastWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Track -> TrackWithMenu(
+                    is Track -> TrackWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onPlayOption = onPlayClick,
                         playlistActions = playlistActions,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.PodcastEpisode -> PodcastEpisodeWithMenu(
+                    is PodcastEpisode -> PodcastEpisodeWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onPlayOption = onPlayClick,
                         playlistActions = playlistActions,
                         libraryActions = libraryActions,
@@ -374,9 +375,8 @@ fun CategoryRow(
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Audiobook -> AudiobookWithMenu(
+                    is Audiobook -> AudiobookWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,
@@ -384,18 +384,16 @@ fun CategoryRow(
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.RadioStation -> RadioWithMenu(
+                    is RadioStation -> RadioWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onPlayOption = onPlayClick,
                         playlistActions = playlistActions,
                         libraryActions = libraryActions,
                         providerIconFetcher = providerIconFetcher,
                     )
 
-                    is AppMediaItem.Genre -> GenreWithMenu(
+                    is Genre -> GenreWithMenu(
                         item = item,
-                        serverUrl = serverUrl,
                         onNavigateClick = onNavigateClick,
                         onPlayOption = onPlayClick,
                         libraryActions = libraryActions,

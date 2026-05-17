@@ -1,6 +1,10 @@
 package io.music_assistant.client.data.model.client
 
-import io.music_assistant.client.data.model.server.MediaType
+import io.music_assistant.client.data.model.client.items.Album
+import io.music_assistant.client.data.model.client.items.AppMediaItem
+import io.music_assistant.client.data.model.client.items.PlayableItem
+import io.music_assistant.client.data.model.client.items.PodcastEpisode
+import io.music_assistant.client.data.model.client.items.Track
 
 enum class SortField(val serverKey: String, val displayName: String) {
     ORIGINAL("original", "Original"),
@@ -99,22 +103,22 @@ enum class SubItemContext {
 fun <T> List<T>.clientSorted(option: SortOption): List<T> {
     val comparator: Comparator<T> = when (option.field) {
         SortField.ORIGINAL -> compareBy<T, Int?>(nullsLast()) {
-            (it as? AppMediaItem.Track)?.discNumber
+            (it as? Track)?.discNumber
         }.thenBy(nullsLast()) {
-            (it as? AppMediaItem.Track)?.trackNumber
+            (it as? Track)?.trackNumber
         }
         SortField.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) {
             (it as? AppMediaItem)?.sortName ?: (it as? AppMediaItem)?.displayName
                 ?: (it as? PlayableItem)?.displayName ?: ""
         }
         SortField.DURATION -> compareBy { (it as? PlayableItem)?.duration ?: 0.0 }
-        SortField.YEAR -> compareBy { (it as? AppMediaItem.Album)?.year ?: 0 }
+        SortField.YEAR -> compareBy { (it as? Album)?.year ?: 0 }
         SortField.RELEASE_DATE -> compareBy(String.CASE_INSENSITIVE_ORDER) {
-            (it as? AppMediaItem.PodcastEpisode)?.releaseDate ?: ""
+            (it as? PodcastEpisode)?.releaseDate ?: ""
         }
         SortField.ARTIST_NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) {
-            (it as? AppMediaItem.Track)?.artists?.firstOrNull()?.displayName
-                ?: (it as? AppMediaItem.Album)?.artists?.firstOrNull()?.displayName
+            (it as? Track)?.artists?.firstOrNull()?.displayName
+                ?: (it as? Album)?.artists?.firstOrNull()?.displayName
                 ?: ""
         }
         else -> compareBy(String.CASE_INSENSITIVE_ORDER) {

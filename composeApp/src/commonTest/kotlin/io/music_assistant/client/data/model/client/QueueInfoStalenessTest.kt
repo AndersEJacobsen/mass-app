@@ -1,6 +1,5 @@
 package io.music_assistant.client.data.model.client
 
-import io.music_assistant.client.data.model.server.RepeatMode
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
