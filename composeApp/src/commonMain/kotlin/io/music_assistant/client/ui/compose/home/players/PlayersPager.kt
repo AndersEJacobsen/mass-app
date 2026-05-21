@@ -480,7 +480,9 @@ private fun ExpandedPlayerPage(
             Column(
                 modifier = Modifier
                     .padding(top = 8.dp)
-                    .widthIn(max = WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND.dp),
+                    .conditional(isLargeScreen) {
+                        widthIn(max = WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND.dp)
+                    },
             ) {
                 Column(
                     modifier = Modifier
@@ -947,6 +949,46 @@ fun ExpandedPlayerPageExpandedScreenPreview() {
             allPlayers = listOf(playerData),
             moveToPlayer = {},
             isExpandedScreen = true,
+            sendspinState = null,
+            isQueueExpanded = false,
+            onExpandQueue = {},
+            contentPadding = PaddingValues(),
+            isCurrentPage = true,
+            livePositionFlow = null,
+        )
+    }
+}
+
+/**
+ * Some screens (like an iPad) are in between the expanded and large size classes - this simulates
+ * that case
+ */
+@Preview(
+    widthDp = WindowSizeClass.WIDTH_DP_LARGE_LOWER_BOUND - 1,
+    heightDp = WindowSizeClass.HEIGHT_DP_EXPANDED_LOWER_BOUND,
+)
+@Composable
+fun ExpandedPlayerPageExpandedScreenPlusPreview() {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        val track = AppMediaItemFixtures.track()
+        val playerData = PlayerDataFixtures.playerData(listOf(track.toQueueTrack()).toQueue())
+
+        ExpandedPlayerPage(
+            player = playerData,
+            colors = PlayerColors(
+                MaterialTheme.colorScheme.surface,
+                MaterialTheme.colorScheme.onSurface,
+            ),
+            onSelectPlayer = {},
+            onGroupButton = {},
+            onDspButton = null,
+            playerAction = { _, _ -> },
+            onFavoriteClick = {},
+            onClose = {},
+            queueAction = {},
+            allPlayers = listOf(playerData),
+            moveToPlayer = {},
+            isExpandedScreen = false,
             sendspinState = null,
             isQueueExpanded = false,
             onExpandQueue = {},

@@ -50,8 +50,8 @@ fun String.isIpPort(): Boolean {
 
 fun Modifier.conditional(
     condition: Boolean,
-    ifTrue: Modifier.() -> Modifier,
     ifFalse: (Modifier.() -> Modifier)? = null,
+    ifTrue: Modifier.() -> Modifier,
 ): Modifier {
     return if (condition) {
         then(ifTrue(Modifier))
