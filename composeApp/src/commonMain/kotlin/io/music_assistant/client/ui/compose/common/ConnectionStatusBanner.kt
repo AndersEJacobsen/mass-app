@@ -14,13 +14,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.utils.SessionState
+import kotlinx.coroutines.delay
 import musicassistantclient.composeapp.generated.resources.*
 import musicassistantclient.composeapp.generated.resources.Res
 import org.jetbrains.compose.resources.stringResource
@@ -32,6 +37,7 @@ import org.koin.compose.koinInject
 @Composable
 fun ConnectionStatusBanner(
     modifier: Modifier = Modifier,
+    delay: Long = 3000,
 ) {
     val serviceClient: ServiceClient = koinInject()
     val sessionState by serviceClient.sessionState.collectAsStateWithLifecycle()
@@ -48,8 +54,19 @@ fun ConnectionStatusBanner(
         else -> null
     }
 
+    // Delay visibility to not spam in cases reconnecting is fast
+    var isVisible by remember { mutableStateOf(false) }
+    if (bannerState != null) {
+        LaunchedEffect(Unit) {
+            delay(delay)
+            isVisible = true
+        }
+    } else {
+        isVisible = false
+    }
+
     AnimatedVisibility(
-        visible = bannerState != null,
+        visible = isVisible,
         enter = expandVertically(),
         exit = shrinkVertically(),
     ) {
