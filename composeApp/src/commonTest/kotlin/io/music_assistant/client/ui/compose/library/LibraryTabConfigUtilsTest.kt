@@ -35,7 +35,7 @@ class LibraryTabConfigUtilsTest {
     }
 
     @Test
-    fun `enabling a tab that's already last enabled is a no-op (boundary reinsert)`() {
+    fun `enabling a tab that's already last enabled is a no-op - boundary reinsert`() {
         val items = listOf("A" to true, "B" to true)
         val result = moveToEnabledBoundary(items, "B", newEnabled = true)
         assertEquals(items, result)

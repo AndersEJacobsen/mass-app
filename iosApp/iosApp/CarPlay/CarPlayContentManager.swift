@@ -136,9 +136,22 @@ class CarPlayContentManager {
     // MARK: - Action Handling
 
     func playItem(_ item: AppMediaItem) {
-        guard KmpHelper.shared.playOnLocalPlayer(item: item) else { return }
-        // Donate the play so Siri learns Music Assistant is a media destination.
-        // Without donations, "Hey Siri, play X" never lists this app as a candidate.
+        play(item, option: .play)
+    }
+
+    func playAll(_ item: AppMediaItem) {
+        play(item, option: .replace)
+    }
+
+    func enqueueAll(_ item: AppMediaItem) {
+        play(item, option: .add)
+    }
+
+    // Donations train Siri's "play X in Music Assistant" model — fire on
+    // any user-initiated dispatch (immediate or queued), since intent to
+    // play is what matters, not whether the RPC ultimately landed.
+    private func play(_ item: AppMediaItem, option: QueueOption) {
+        guard KmpHelper.shared.playOnLocalPlayer(item: item, option: option) else { return }
         SiriIntentHandler.donatePlayed(item)
     }
     
@@ -169,7 +182,6 @@ class CarPlayContentManager {
         listItem.setImage(UIImage(systemName: iconName))
 
         // Load artwork asynchronously
-        let serverUrl = KmpHelper.shared.getServerUrl()
         if let imageUrl = item.image(type: ImageType.thumb)?.url {
             CarPlayImageLoader.shared.loadImage(from: imageUrl) { image in
                 if let image = image {

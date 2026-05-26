@@ -287,7 +287,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                 return
             }
 
-            let serverUrl = KmpHelper.shared.getServerUrl()
             let imageSize = CPListImageRowItem.maximumImageSize
             let maxImages = 8
 
@@ -464,7 +463,8 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushAlbumsForArtist(_ artist: Artist) {
         pushDrilldown(
             title: "Albums by \(artist.displayName)",
-            emptyText: "No albums for \(artist.displayName)"
+            emptyText: "No albums for \(artist.displayName)",
+            bulkActionParent: artist
         ) { completion in
             CarPlayContentManager.shared.fetchAlbumsForArtist(artist, completion: completion)
         }
@@ -473,7 +473,8 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushTracksForAlbum(_ album: Album) {
         pushDrilldown(
             title: album.displayName,
-            emptyText: "No tracks in this album"
+            emptyText: "No tracks in this album",
+            bulkActionParent: album
         ) { completion in
             CarPlayContentManager.shared.fetchTracksForAlbum(album, completion: completion)
         }
@@ -482,7 +483,8 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushTracksForPlaylist(_ playlist: Playlist) {
         pushDrilldown(
             title: playlist.displayName,
-            emptyText: "No tracks in this playlist"
+            emptyText: "No tracks in this playlist",
+            bulkActionParent: playlist
         ) { completion in
             CarPlayContentManager.shared.fetchTracksForPlaylist(playlist, completion: completion)
         }
@@ -493,6 +495,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushDrilldown(
         title: String,
         emptyText: String,
+        bulkActionParent: AppMediaItem,
         fetcher: @escaping (@escaping ([CPListItem]?) -> Void) -> Void
     ) {
         let template = CPListTemplate(title: title, sections: [])
@@ -507,11 +510,53 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                     template.updateSections([emptyStateSection(text: emptyText)])
                 } else {
                     self.attachHandlers(to: items)
-                    template.updateSections([CPListSection(items: items)])
+                    let prefix = self.bulkActionRows(for: bulkActionParent)
+                    template.updateSections([CPListSection(items: prefix + items)])
                 }
             } else {
                 template.updateSections([CPListSection(items: [disconnectedRow()])])
             }
+        }
+    }
+
+    // MARK: - Bulk actions
+
+    private func bulkActionRows(for parent: AppMediaItem) -> [CPListItem] {
+        let playAll = CPListItem(
+            text: "Play All",
+            detailText: nil,
+            image: UIImage(systemName: "play.fill")
+        )
+        playAll.handler = { [weak self] _, completion in
+            self?.handleBulkAction(parent: parent, mode: .playAll)
+            completion()
+        }
+
+        let addAll = CPListItem(
+            text: "Add All to Queue",
+            detailText: nil,
+            image: UIImage(systemName: "text.badge.plus")
+        )
+        addAll.handler = { [weak self] _, completion in
+            self?.handleBulkAction(parent: parent, mode: .enqueueAll)
+            completion()
+        }
+
+        return [playAll, addAll]
+    }
+
+    private enum BulkAction { case playAll, enqueueAll }
+
+    private func handleBulkAction(parent: AppMediaItem, mode: BulkAction) {
+        guard isReady else { showOfflineAlert(); return }
+        switch mode {
+        case .playAll:
+            CarPlayContentManager.shared.playAll(parent)
+            playAndShowNowPlaying()
+        case .enqueueAll:
+            // Intentionally no Now Playing push: enqueue is non-disruptive,
+            // user stays on the drilldown to keep stacking adds.
+            CarPlayContentManager.shared.enqueueAll(parent)
         }
     }
 

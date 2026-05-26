@@ -477,7 +477,7 @@ extension SiriIntentHandler: INPlayMediaIntentHandling {
         _ item: AppMediaItem,
         completion: @escaping (INPlayMediaIntentResponse) -> Void
     ) {
-        let dispatched = KmpHelper.shared.playOnLocalPlayer(item: item)
+        let dispatched = KmpHelper.shared.playOnLocalPlayer(item: item, option: .play)
         os_log("PlayMedia.dispatchPlay: name=%{public}@ dispatched=%{public}@",
                log: log, type: .info,
                item.displayName,

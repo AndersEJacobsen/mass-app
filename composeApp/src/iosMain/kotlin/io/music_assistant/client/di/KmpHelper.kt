@@ -11,6 +11,7 @@ import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.auth.AuthenticationManager
 import io.music_assistant.client.data.MainDataSource
+import io.music_assistant.client.data.executeLocalPlayerDispatch
 import io.music_assistant.client.data.model.client.MediaType
 import io.music_assistant.client.data.model.client.QueueOption
 import io.music_assistant.client.data.model.client.items.Album
@@ -19,6 +20,7 @@ import io.music_assistant.client.data.model.client.items.Artist
 import io.music_assistant.client.data.model.client.items.Playlist
 import io.music_assistant.client.data.model.client.items.RecommendationFolder
 import io.music_assistant.client.data.model.client.items.Track
+import io.music_assistant.client.data.planLocalPlayerDispatch
 import io.music_assistant.client.data.repository.MediaItemRepository
 import io.music_assistant.client.utils.HasConnectionData
 import io.music_assistant.client.utils.currentTimeMillis
@@ -338,37 +340,31 @@ object KmpHelper : KoinComponent {
     // MARK: - Playback
 
     /**
-     * Play [item] on the iOS local Sendspin player only — never the group
-     * it may be synced to. Detaches from any sync group first; MA promotes
-     * `play(queueOrPlayerId = childId)` to the group queue otherwise.
+     * Play, replace, or append [item] on the iOS local Sendspin player —
+     * never the group it may be synced to. When the local player is currently
+     * a sync-group child we always detach first, regardless of [option]:
+     * being in CarPlay means the user wants audio out of the phone they're
+     * holding, and there's no plausible scenario where they want the same
+     * audio mirrored to another player as well.
      *
      * Returns false on no-local-player or no-URI; callers use this to skip
      * Siri donation and respond with `.failure`.
      */
-    fun playOnLocalPlayer(item: AppMediaItem): Boolean {
-        val localPlayerData = mainDataSource.localPlayer.value ?: return false
-        val playerId = localPlayerData.player.id
-        val mediaUri = item.mediaUri ?: return false
-        val syncedToId = localPlayerData.player.syncedTo
+    fun playOnLocalPlayer(item: AppMediaItem, option: QueueOption): Boolean {
+        val player = mainDataSource.localPlayer.value?.player
+        val plan = planLocalPlayerDispatch(
+            localPlayerId = player?.id,
+            localPlayerSyncedTo = player?.syncedTo,
+            mediaUri = item.mediaUri,
+            option = option,
+        ) ?: return false
+        plan.detachFrom?.let { syncedToId ->
+            log.i { "playOnLocalPlayer($option): detaching ${plan.playerId} from $syncedToId" }
+        }
         mainScope.launch {
-            if (syncedToId != null) {
-                log.i { "playOnLocalPlayer: detaching $playerId from $syncedToId" }
-                serviceClient.sendRequest(
-                    Request.Player.setGroupMembers(
-                        playerId = syncedToId,
-                        playersToAdd = null,
-                        playersToRemove = listOf(playerId),
-                    ),
-                )
+            executeLocalPlayerDispatch(serviceClient, plan) { label, error ->
+                log.w(error) { "$label RPC failed: ${error.message}" }
             }
-            serviceClient.sendRequest(
-                Request.Library.play(
-                    media = listOf(mediaUri),
-                    queueOrPlayerId = playerId,
-                    option = QueueOption.PLAY,
-                    radioMode = false,
-                ),
-            )
         }
         return true
     }

@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 
 class MultiBackStackTest {
     @Test
-    fun `#resetCurrentBackStack restores back stack to original root`() {
+    fun `resetCurrentBackStack restores back stack to original root`() {
         val backStack = mutableListOf(TestNavKey("root"), TestNavKey("top"))
         val multiBackStack = MultiBackStack(listOf(backStack))
         multiBackStack.resetCurrentBackStack()
