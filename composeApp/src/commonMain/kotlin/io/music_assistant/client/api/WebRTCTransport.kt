@@ -12,8 +12,11 @@ import io.music_assistant.client.webrtc.WebRTCConnectionManager
 import io.music_assistant.client.webrtc.WebRTCHttpProxy
 import io.music_assistant.client.webrtc.model.RemoteId
 import io.music_assistant.client.webrtc.model.WebRTCConnectionState
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,11 +47,29 @@ private val HTTP_PROXY_TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"http-proxy-respons
 class WebRTCTransport(
     private val httpClient: HttpClient,
     private val remoteId: RemoteId,
-    private val scope: CoroutineScope,
+    parentScope: CoroutineScope,
     private val networkAvailable: StateFlow<Boolean>? = null,
     private val maxReconnectAttempts: Int = DEFAULT_MAX_RECONNECT_ATTEMPTS,
 ) : Transport {
     private val logger = Logger.withTag("WebRTCTransport")
+
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        logger.e(throwable) { "Uncaught exception in WebRTCTransport scope" }
+        when (_state.value) {
+            TransportState.Connected -> forceReconnect()
+            TransportState.Connecting, is TransportState.Reconnecting ->
+                _state.value = TransportState.Failed(
+                    Exception("Recovery machinery died: ${throwable.message}", throwable),
+                )
+            TransportState.Disconnected, is TransportState.Failed -> Unit
+        }
+    }
+
+    private val scope: CoroutineScope = CoroutineScope(
+        parentScope.coroutineContext +
+            SupervisorJob(parentScope.coroutineContext[Job]) +
+            exceptionHandler,
+    )
 
     private val _state = MutableStateFlow<TransportState>(TransportState.Disconnected)
     override val state = _state.asStateFlow()
@@ -106,9 +127,11 @@ class WebRTCTransport(
     private fun onNetworkLost() {
         // Pre-empt the slow path: cancel state monitor, tear down manager, and start the
         // reconnection loop. The loop gates on networkAvailable, so it waits until a
-        // network is back before attempting.
+        // network is back before attempting. connectionJob is also cancelled so an
+        // in-flight forceReconnect doesn't race a second startReconnection() against ours.
         stateMonitorJob?.cancel()
         messageListenerJob?.cancel()
+        connectionJob?.cancel()
         reconnectionJob?.cancel()
         reconnectionJob = scope.launch {
             cleanupManager()
@@ -251,6 +274,10 @@ class WebRTCTransport(
             }
         }
         _state.value = TransportState.Disconnected
+    }
+
+    override fun close() {
+        scope.cancel()
     }
 
     /** Cleans up the current manager and its listener jobs. Does NOT cancel reconnectionJob. */

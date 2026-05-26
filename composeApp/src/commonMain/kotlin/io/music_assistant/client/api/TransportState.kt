@@ -25,4 +25,7 @@ interface Transport {
      * Default no-op for transports with built-in keepalive (e.g. WebRTC ICE).
      */
     fun verifyConnection(timeoutMs: Long = 1000) {}
+
+    /** Release the transport's coroutine scope. Call [disconnect] first; unusable after. */
+    fun close() {}
 }

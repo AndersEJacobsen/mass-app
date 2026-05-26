@@ -30,6 +30,7 @@ import io.music_assistant.client.utils.myJson
 import io.music_assistant.client.utils.resultAs
 import io.music_assistant.client.utils.update
 import io.music_assistant.client.webrtc.model.RemoteId
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -67,8 +68,15 @@ class KtorServiceClient(
     private val settings: SettingsRepository,
     private val errorBus: ErrorMessageBus,
 ) : ServiceClient, CoroutineScope, KoinComponent {
+    private val logger = Logger.withTag("ServiceClient")
     private val supervisorJob = SupervisorJob()
-    override val coroutineContext: CoroutineContext = supervisorJob + Dispatchers.IO
+
+    private val scopeExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        logger.e(throwable) { "Uncaught exception in KtorServiceClient scope (non-transport)" }
+    }
+
+    override val coroutineContext: CoroutineContext =
+        supervisorJob + Dispatchers.IO + scopeExceptionHandler
 
     private val client = createPlatformHttpClient {
         install(WebSockets) {
@@ -195,8 +203,6 @@ class KtorServiceClient(
         }
         return base.trimEnd('/') + tail
     }
-
-    private val logger = Logger.withTag("ServiceClient")
 
     /**
      * Force a full WebRTC reconnection to get fresh SDP-negotiated data channels.
@@ -576,12 +582,13 @@ class KtorServiceClient(
         // observer processes TransportState.Disconnected and briefly sets ByUser
         transportObserverJob?.cancel()
         transport?.disconnect()
+        transport?.close()
         _sessionState.update { SessionState.Connecting }
 
         val directTransport = DirectTransport(
             client = client,
             connectionInfoProvider = { connection },
-            scope = this,
+            parentScope = this,
             networkAvailable = networkMonitor.isAvailable,
         )
         transport = directTransport
@@ -629,12 +636,13 @@ class KtorServiceClient(
     private fun forceConnectWebRTC(remoteId: RemoteId) {
         transportObserverJob?.cancel()
         transport?.disconnect()
+        transport?.close()
         _sessionState.update { SessionState.Connecting }
 
         val webrtcTransport = WebRTCTransport(
             httpClient = webrtcHttpClient,
             remoteId = remoteId,
-            scope = this,
+            parentScope = this,
             networkAvailable = networkMonitor.isAvailable,
         )
         transport = webrtcTransport
@@ -690,6 +698,7 @@ class KtorServiceClient(
             transportObserverJob?.cancel()
             transportObserverJob = null
             transport?.disconnect()
+            transport?.close()
             transport = null
             _sessionState.update { newState }
             rpcEngine.clear()

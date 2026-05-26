@@ -10,8 +10,11 @@ import io.ktor.client.plugins.websocket.wss
 import io.ktor.http.HttpMethod
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,15 +24,34 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlin.concurrent.Volatile
 
 class DirectTransport(
     private val client: HttpClient,
     private val connectionInfoProvider: () -> ConnectionInfo,
-    private val scope: CoroutineScope,
+    parentScope: CoroutineScope,
     private val networkAvailable: StateFlow<Boolean>? = null,
     private val maxReconnectAttempts: Int = DEFAULT_MAX_RECONNECT_ATTEMPTS,
 ) : Transport {
     private val logger = Logger.withTag("DirectTransport")
+
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        logger.e(throwable) { "Uncaught exception in DirectTransport scope" }
+        when (_state.value) {
+            TransportState.Connected -> verifyConnection()
+            TransportState.Connecting, is TransportState.Reconnecting ->
+                _state.value = TransportState.Failed(
+                    Exception("Recovery machinery died: ${throwable.message}", throwable),
+                )
+            TransportState.Disconnected, is TransportState.Failed -> Unit
+        }
+    }
+
+    private val scope: CoroutineScope = CoroutineScope(
+        parentScope.coroutineContext +
+            SupervisorJob(parentScope.coroutineContext[Job]) +
+            exceptionHandler,
+    )
 
     private val _state = MutableStateFlow<TransportState>(TransportState.Disconnected)
     override val state = _state.asStateFlow()
@@ -38,8 +60,12 @@ class DirectTransport(
     override val messages = _messages.asSharedFlow()
 
     private var connectionJob: Job? = null
+
+    @Volatile
     private var session: DefaultClientWebSocketSession? = null
     private var wasConnected = false
+
+    @Volatile
     private var messageCounter = 0L
 
     override fun connect() {
@@ -156,6 +182,10 @@ class DirectTransport(
             scope.launch { s.close() }
         }
         _state.value = TransportState.Disconnected
+    }
+
+    override fun close() {
+        scope.cancel()
     }
 
     /**

@@ -426,7 +426,14 @@ class WebRTCConnectionManager(
         _connectionState.value = WebRTCConnectionState.Error(
             WebRTCError.SignalingError(message.error),
         )
-        scope.launch { cleanup() }
+        scope.launch {
+            try {
+                cleanup()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                logger.w(e) { "cleanup() after signaling error failed" }
+            }
+        }
     }
 
     /**
@@ -437,7 +444,14 @@ class WebRTCConnectionManager(
         _connectionState.value = WebRTCConnectionState.Error(
             WebRTCError.ConnectionError("Remote peer disconnected"),
         )
-        scope.launch { cleanup() }
+        scope.launch {
+            try {
+                cleanup()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                logger.w(e) { "cleanup() after peer disconnect failed" }
+            }
+        }
     }
 
     /**

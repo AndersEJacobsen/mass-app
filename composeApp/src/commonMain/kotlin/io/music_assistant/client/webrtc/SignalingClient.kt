@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlin.concurrent.Volatile
 
 /**
  * WebSocket state for signaling server connection.
@@ -65,6 +66,7 @@ class SignalingClient(
     private val logger = Logger.withTag("SignalingClient")
     private val mutex = Mutex()
 
+    @Volatile
     private var session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var receiveJob: Job? = null
 
