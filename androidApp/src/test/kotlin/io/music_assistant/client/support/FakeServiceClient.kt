@@ -64,6 +64,31 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
             return items.filter { it.mediaType == MediaType.TRACK.serverValue }
         }
 
+    private val playlists: List<ServerMediaItem>
+        get() {
+            return items.filter { it.mediaType == MediaType.PLAYLIST.serverValue }
+        }
+
+    private val audiobooks: List<ServerMediaItem>
+        get() {
+            return items.filter { it.mediaType == MediaType.AUDIOBOOK.serverValue }
+        }
+
+    private val podcasts: List<ServerMediaItem>
+        get() {
+            return items.filter { it.mediaType == MediaType.PODCAST.serverValue }
+        }
+
+    private val radios: List<ServerMediaItem>
+        get() {
+            return items.filter { it.mediaType == MediaType.RADIO.serverValue }
+        }
+
+    private val genres: List<ServerMediaItem>
+        get() {
+            return items.filter { it.mediaType == MediaType.GENRE.serverValue }
+        }
+
     val username = "user"
     val password = "password"
 
@@ -130,7 +155,7 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
                         request = request,
                         result = SearchResult(
                             artists = emptyList(),
-                            albums = searchItems(request, items),
+                            albums = searchItems(request, "search_query", items),
                             tracks = emptyList(),
                             playlists = emptyList(),
                             podcasts = emptyList(),
@@ -163,7 +188,7 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
                 Result.success(
                     answer(
                         request = request,
-                        result = albums,
+                        result = searchItems(request, "search", albums),
                     ),
                 )
             }
@@ -181,7 +206,61 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
                 Result.success(
                     answer(
                         request = request,
-                        result = artists,
+                        result = searchItems(request, "search", artists),
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_PLAYLISTS_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = searchItems(request, "search", playlists),
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_TRACKS_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = tracks,
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_AUDIOBOOKS_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = searchItems(request, "search", audiobooks),
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_PODCASTS_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = searchItems(request, "search", podcasts),
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_RADIOS_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = searchItems(request, "search", radios),
+                    ),
+                )
+            }
+
+            APICommands.MUSIC_GENRES_LIBRARY_ITEMS -> {
+                Result.success(
+                    answer(
+                        request = request,
+                        result = searchItems(request, "search", genres),
                     ),
                 )
             }
@@ -492,11 +571,12 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
 
     private fun searchItems(
         request: Request,
+        requestArg: String,
         items: Collection<ServerMediaItem>,
     ): List<ServerMediaItem> {
         return items.filter {
             it.name.contains(
-                (request.args!!["search_query"]!! as JsonPrimitive).content,
+                (request.args!![requestArg]!! as JsonPrimitive).content,
                 ignoreCase = true,
             )
         }

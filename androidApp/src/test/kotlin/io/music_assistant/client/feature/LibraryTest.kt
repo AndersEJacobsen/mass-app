@@ -11,11 +11,11 @@ import io.music_assistant.client.support.launchLoggedInApp
 import io.music_assistant.client.support.pages.LibraryPage
 import io.music_assistant.client.support.pages.MediaItemPage
 import io.music_assistant.client.support.pages.assertMediaDisplayed
+import io.music_assistant.client.support.pages.assertMediaNotDisplayed
 import io.music_assistant.client.support.pages.clickHome
 import io.music_assistant.client.support.pages.clickLibrary
 import io.music_assistant.client.support.rules.createTestRuleChain
 import musicassistantclient.composeapp.generated.resources.Res
-import musicassistantclient.composeapp.generated.resources.media_type_albums
 import musicassistantclient.composeapp.generated.resources.nav_home
 import musicassistantclient.composeapp.generated.resources.nav_library
 import org.junit.Rule
@@ -59,7 +59,99 @@ class LibraryTest {
             .clickArtists()
             .assertMediaDisplayed(artist1.name)
             .assertMediaDisplayed(artist2.name)
-            .clickOnMedia(artist1)
+    }
+
+    @Test
+    fun `can browse playlists`() {
+        val playlist1 = ServerMediaItemFixtures.playlist()
+        val playlist2 = ServerMediaItemFixtures.playlist()
+        serviceClient.addToLibrary(playlist1, playlist2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickPlaylists()
+            .assertMediaDisplayed(playlist1.name)
+            .assertMediaDisplayed(playlist2.name)
+    }
+
+    @Test
+    fun `can browse tracks`() {
+        val track1 = ServerMediaItemFixtures.track()
+        val track2 = ServerMediaItemFixtures.track()
+        serviceClient.addToLibrary(track1, track2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickTracks()
+            .assertMediaDisplayed(track1.name)
+            .assertMediaDisplayed(track2.name)
+    }
+
+    @Test
+    fun `can browse audiobooks`() {
+        val audiobook1 = ServerMediaItemFixtures.audiobook()
+        val audiobook2 = ServerMediaItemFixtures.audiobook()
+        serviceClient.addToLibrary(audiobook1, audiobook2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickAudiobooks()
+            .assertMediaDisplayed(audiobook1.name)
+            .assertMediaDisplayed(audiobook2.name)
+    }
+
+    @Test
+    fun `can browse podcasts`() {
+        val podcast1 = ServerMediaItemFixtures.podcast()
+        val podcast2 = ServerMediaItemFixtures.podcast()
+        serviceClient.addToLibrary(podcast1, podcast2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickPodcasts()
+            .assertMediaDisplayed(podcast1.name)
+            .assertMediaDisplayed(podcast2.name)
+    }
+
+    @Test
+    fun `can browse radio`() {
+        val radio1 = ServerMediaItemFixtures.radio()
+        val radio2 = ServerMediaItemFixtures.radio()
+        serviceClient.addToLibrary(radio1, radio2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickRadio()
+            .assertMediaDisplayed(radio1.name)
+            .assertMediaDisplayed(radio2.name)
+    }
+
+    @Test
+    fun `can browse genres`() {
+        val genre1 = ServerMediaItemFixtures.genre()
+        val genre2 = ServerMediaItemFixtures.genre()
+        serviceClient.addToLibrary(genre1, genre2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickGenres()
+            .assertMediaDisplayed(genre1.name)
+            .assertMediaDisplayed(genre2.name)
+    }
+
+    @Test
+    fun `can search item`() {
+        val album1 = ServerMediaItemFixtures.album(name = "Balloon Trapeze Experience")
+        val album2 = ServerMediaItemFixtures.album(name = "Frontal Lobe Annihilation Puzzle")
+        serviceClient.addToLibrary(album1, album2)
+
+        launchLoggedInApp(composeTestRule, serviceClient)
+            .clickLibrary()
+            .clickAlbums()
+            .openSearch()
+            .search("lobe")
+            .assertMediaDisplayed(album2.name)
+            .assertMediaNotDisplayed(album1.name)
     }
 
     @Test
@@ -75,17 +167,17 @@ class LibraryTest {
             .clickOnMedia(album2)
             .clickHome(
                 MediaItemPage(
-                album1,
-                navigationItem = Res.string.nav_home.get(),
-                composeTestRule = composeTestRule,
-            ),
+                    album1,
+                    navigationItem = Res.string.nav_home.get(),
+                    composeTestRule = composeTestRule,
+                ),
             )
             .clickLibrary(
                 MediaItemPage(
-                album2,
-                navigationItem = Res.string.nav_library.get(),
-                composeTestRule = composeTestRule,
-            ),
+                    album2,
+                    navigationItem = Res.string.nav_library.get(),
+                    composeTestRule = composeTestRule,
+                ),
             )
     }
 
@@ -98,6 +190,6 @@ class LibraryTest {
             .clickLibrary()
             .clickAlbums()
             .clickOnMedia(album)
-            .clickLibrary(LibraryPage(Res.string.media_type_albums.get(), composeTestRule))
+            .clickLibrary(LibraryPage(composeTestRule))
     }
 }

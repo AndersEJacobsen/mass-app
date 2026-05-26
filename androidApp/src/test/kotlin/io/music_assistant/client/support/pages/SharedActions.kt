@@ -1,6 +1,7 @@
 package io.music_assistant.client.support.pages
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isDisplayed
@@ -18,7 +19,6 @@ import musicassistantclient.composeapp.generated.resources.action_pause
 import musicassistantclient.composeapp.generated.resources.action_play
 import musicassistantclient.composeapp.generated.resources.cd_current_player
 import musicassistantclient.composeapp.generated.resources.cd_playing
-import musicassistantclient.composeapp.generated.resources.media_type_artists
 import musicassistantclient.composeapp.generated.resources.nav_home
 import musicassistantclient.composeapp.generated.resources.nav_library
 import musicassistantclient.composeapp.generated.resources.nav_search
@@ -74,7 +74,7 @@ fun <T : Page> ComposePage.clickHome(destination: T): T {
 
 fun ComposePage.clickLibrary(): LibraryPage {
     clickNavBarItem(Res.string.nav_library.get())
-    return LibraryPage(Res.string.media_type_artists.get(), composeTestRule).assertOnPage()
+    return LibraryPage(composeTestRule).assertOnPage()
 }
 
 fun <T : Page> ComposePage.clickLibrary(destination: T): T {
@@ -84,6 +84,11 @@ fun <T : Page> ComposePage.clickLibrary(destination: T): T {
 
 fun <T : ComposePage> T.assertMediaDisplayed(name: String): T {
     composeTestRule.onNodeWithText(name).assertIsDisplayed()
+    return this
+}
+
+fun <T : ComposePage> T.assertMediaNotDisplayed(name: String): T {
+    composeTestRule.onNodeWithText(name).assertIsNotDisplayed()
     return this
 }
 

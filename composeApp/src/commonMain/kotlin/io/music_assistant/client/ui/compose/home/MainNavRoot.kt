@@ -57,9 +57,10 @@ import io.music_assistant.client.ui.compose.home.players.DspSettingsViewModel
 import io.music_assistant.client.ui.compose.home.players.PlayersPager
 import io.music_assistant.client.ui.compose.item.ItemDetailsScreen
 import io.music_assistant.client.ui.compose.item.ItemDetailsViewModel
-import io.music_assistant.client.ui.compose.library.LibraryNavCoordinator
+import io.music_assistant.client.ui.compose.library.ItemListScreen
+import io.music_assistant.client.ui.compose.library.ItemListViewModel
 import io.music_assistant.client.ui.compose.library.LibraryScreen
-import io.music_assistant.client.ui.compose.library.LibraryViewModel
+import io.music_assistant.client.ui.compose.library.LibraryTabsViewModel
 import io.music_assistant.client.ui.compose.nav.AdaptiveNavigationScaffold
 import io.music_assistant.client.ui.compose.nav.MultiBackStack
 import io.music_assistant.client.ui.compose.nav.NavigationItem
@@ -144,7 +145,7 @@ fun MainNavigationRoot(
 
     val backStacks = listOf(
         rememberMainNavBackStack(MainNav.Landing),
-        rememberMainNavBackStack(MainNav.Library(null)),
+        rememberMainNavBackStack(MainNav.Library),
         rememberMainNavBackStack(MainNav.Search),
     )
     val multiBackStack = remember { MultiBackStack(backStacks) }
@@ -260,7 +261,6 @@ private fun mainNavEntryProvider(
     homeScreenViewModel: HomeScreenViewModel,
     actionsViewModel: ActionsViewModel,
 ): (NavKey) -> NavEntry<NavKey> {
-    val libraryNavCoordinator: LibraryNavCoordinator = koinInject()
     return entryProvider {
         entry<MainNav.Landing> {
             HomeScreen(
@@ -290,8 +290,7 @@ private fun mainNavEntryProvider(
                     }
                 },
                 onLibraryItemClick = { type ->
-                    type?.let { libraryNavCoordinator.requestTab(it) }
-                    multiBackStack.switchTo(1, MainNav.Library(type))
+                    multiBackStack.switchTo(1, MainNav.ItemList(type))
                 },
                 providerIconFetcher = { modifier, provider ->
                     actionsViewModel.getProviderIcon(provider)
@@ -303,34 +302,48 @@ private fun mainNavEntryProvider(
         }
 
         entry<MainNav.Library> {
-            val libraryViewModel = koinViewModel<LibraryViewModel>()
+            val libraryTabsViewModel = koinViewModel<LibraryTabsViewModel>()
 
             LibraryScreen(
-                libraryViewModel = libraryViewModel,
-                contentPadding = contentPadding,
-                initialTabType = it.type,
-                actionsViewModel = actionsViewModel,
-            ) { item ->
-                when (item) {
-                    is Artist,
-                    is Album,
-                    is Playlist,
-                    is Podcast,
-                    is Audiobook,
-                    is Genre,
-                        -> {
-                        multiBackStack.add(
-                            MainNav.ItemDetails(
-                                itemId = item.itemId,
-                                mediaType = item.mediaType,
-                                providerId = item.provider,
-                            ),
-                        )
-                    }
+                libraryTabsViewModel,
+                onTypeClick = {
+                    multiBackStack.add(MainNav.ItemList(it))
+                },
+            )
+        }
 
-                    else -> Unit
-                }
+        entry<MainNav.ItemList> {
+            val itemListViewModel = koinViewModel<ItemListViewModel> {
+                parametersOf(it.mediaType)
             }
+
+            ItemListScreen(
+                itemListViewModel = itemListViewModel,
+                contentPadding = contentPadding,
+                actionsViewModel = actionsViewModel,
+                onBack = { multiBackStack.removeLastOrNull() },
+                onNavigateClick = { item ->
+                    when (item) {
+                        is Artist,
+                        is Album,
+                        is Playlist,
+                        is Podcast,
+                        is Audiobook,
+                        is Genre,
+                            -> {
+                            multiBackStack.add(
+                                MainNav.ItemDetails(
+                                    itemId = item.itemId,
+                                    mediaType = item.mediaType,
+                                    providerId = item.provider,
+                                ),
+                            )
+                        }
+
+                        else -> Unit
+                    }
+                },
+            )
         }
 
         entry<MainNav.ItemDetails> {
@@ -381,7 +394,10 @@ private sealed interface MainNav : NavKey {
     data object Landing : MainNav
 
     @Serializable
-    data class Library(val type: MediaType?) : MainNav
+    data object Library : MainNav
+
+    @Serializable
+    data class ItemList(val mediaType: MediaType) : MainNav
 
     /**
      * Multiple instances of the same item can appear in a back stack - [stackingId] ensures they
@@ -409,6 +425,7 @@ private fun rememberMainNavBackStack(bottom: MainNav) = rememberNavBackStack(
                 polymorphic(NavKey::class) {
                     subclass(MainNav.Landing::class, MainNav.Landing.serializer())
                     subclass(MainNav.Library::class, MainNav.Library.serializer())
+                    subclass(MainNav.ItemList::class, MainNav.ItemList.serializer())
                     subclass(
                         MainNav.ItemDetails::class,
                         MainNav.ItemDetails.serializer(),

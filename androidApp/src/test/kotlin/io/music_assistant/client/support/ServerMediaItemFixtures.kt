@@ -50,4 +50,64 @@ object ServerMediaItemFixtures {
             uri = "http://example.com/track/$itemId",
         )
     }
+
+    fun playlist(
+        itemId: String = uniqueIdGenerator.nextInt().toString(),
+        name: String = "Playlist $itemId",
+    ): ServerMediaItem {
+        return ServerMediaItem(
+            itemId = itemId,
+            provider = "blah",
+            name = name,
+            mediaType = MediaType.PLAYLIST.serverValue,
+        )
+    }
+
+    fun audiobook(
+        itemId: String = uniqueIdGenerator.nextInt().toString(),
+        name: String = "Audiobook $itemId",
+    ): ServerMediaItem {
+        return ServerMediaItem(
+            itemId = itemId,
+            provider = "blah",
+            name = name,
+            mediaType = MediaType.AUDIOBOOK.serverValue,
+        )
+    }
+
+    fun podcast(
+        itemId: String = uniqueIdGenerator.nextInt().toString(),
+        name: String = "Podcast $itemId",
+    ): ServerMediaItem {
+        return ServerMediaItem(
+            itemId = itemId,
+            provider = "blah",
+            name = name,
+            mediaType = MediaType.PODCAST.serverValue,
+        )
+    }
+
+    fun radio(
+        itemId: String = uniqueIdGenerator.nextInt().toString(),
+        name: String = "Radio $itemId",
+    ): ServerMediaItem {
+        return ServerMediaItem(
+            itemId = itemId,
+            provider = "blah",
+            name = name,
+            mediaType = MediaType.RADIO.serverValue,
+        )
+    }
+
+    fun genre(
+        itemId: String = uniqueIdGenerator.nextInt().toString(),
+        name: String = "Genre $itemId",
+    ): ServerMediaItem {
+        return ServerMediaItem(
+            itemId = itemId,
+            provider = "blah",
+            name = name,
+            mediaType = MediaType.GENRE.serverValue,
+        )
+    }
 }

@@ -1,23 +1,26 @@
 package io.music_assistant.client.support.pages
 
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import io.music_assistant.client.data.model.server.ServerMediaItem
 import io.music_assistant.client.support.get
-import io.music_assistant.client.support.isTab
 import musicassistantclient.composeapp.generated.resources.Res
 import musicassistantclient.composeapp.generated.resources.media_type_albums
 import musicassistantclient.composeapp.generated.resources.media_type_artists
+import musicassistantclient.composeapp.generated.resources.media_type_audiobooks
+import musicassistantclient.composeapp.generated.resources.media_type_genres
+import musicassistantclient.composeapp.generated.resources.media_type_playlists
+import musicassistantclient.composeapp.generated.resources.media_type_podcasts
+import musicassistantclient.composeapp.generated.resources.media_type_radio
+import musicassistantclient.composeapp.generated.resources.media_type_tracks
 import musicassistantclient.composeapp.generated.resources.nav_home
 import musicassistantclient.composeapp.generated.resources.nav_library
 import musicassistantclient.composeapp.generated.resources.nav_search
 import musicassistantclient.composeapp.generated.resources.nav_settings
 
-class LibraryPage(private val type: String, composeTestRule: ComposeTestRule) :
+class LibraryPage(composeTestRule: ComposeTestRule) :
     ComposePage(composeTestRule) {
     override fun assert() {
-        composeTestRule.onNode(isTab(type)).assertIsSelected()
         assertNavBar(
             items = listOf(
                 Res.string.nav_home.get(),
@@ -29,20 +32,40 @@ class LibraryPage(private val type: String, composeTestRule: ComposeTestRule) :
         )
     }
 
-    fun clickAlbums(): LibraryPage {
-        return clickTab(Res.string.media_type_albums.get())
+    fun clickAlbums(): ItemListPage {
+        return clickType(Res.string.media_type_albums.get())
     }
 
-    fun clickArtists(): LibraryPage {
-        return clickTab(Res.string.media_type_artists.get())
+    fun clickArtists(): ItemListPage {
+        return clickType(Res.string.media_type_artists.get())
     }
 
-    private fun clickTab(type: String): LibraryPage {
-        composeTestRule.onNode(isTab(type)).performClick()
-        return LibraryPage(type, composeTestRule).assertOnPage()
+    fun clickPlaylists(): ItemListPage {
+        return clickType(Res.string.media_type_playlists.get())
     }
 
-    fun clickOnMedia(item: ServerMediaItem): MediaItemPage {
-        return clickOnMedia(item, Res.string.nav_library.get())
+    fun clickTracks(): ItemListPage {
+        return clickType(Res.string.media_type_tracks.get())
+    }
+
+    fun clickAudiobooks(): ItemListPage {
+        return clickType(Res.string.media_type_audiobooks.get())
+    }
+
+    fun clickPodcasts(): ItemListPage {
+        return clickType(Res.string.media_type_podcasts.get())
+    }
+
+    fun clickRadio(): ItemListPage {
+        return clickType(Res.string.media_type_radio.get())
+    }
+
+    fun clickGenres(): ItemListPage {
+        return clickType(Res.string.media_type_genres.get())
+    }
+
+    private fun clickType(type: String): ItemListPage {
+        composeTestRule.onNodeWithText(type).performClick()
+        return ItemListPage(type, composeTestRule).assertOnPage()
     }
 }
