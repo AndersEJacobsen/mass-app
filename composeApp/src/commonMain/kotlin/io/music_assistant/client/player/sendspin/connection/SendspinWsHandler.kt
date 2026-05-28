@@ -97,6 +97,11 @@ class SendspinWsHandler(
         }
     }
 
+    // Ktor's Frame is `expect sealed`: the metadata compile can't prove the
+    // when below is exhaustive without an `else`, but the platform compiles
+    // resolve Frame to a concrete sealed and flag the `else` as redundant.
+    // Suppress that warning here so both compiles stay clean.
+    @Suppress("REDUNDANT_ELSE_IN_WHEN")
     private fun startListening(wsSession: DefaultClientWebSocketSession) {
         listenerJob?.cancel()
         listenerJob = launch {
@@ -123,6 +128,8 @@ class SendspinWsHandler(
                         is Frame.Ping, is Frame.Pong -> {
                             // Handled automatically by Ktor
                         }
+
+                        else -> Unit
                     }
                 }
             } catch (e: Exception) {
