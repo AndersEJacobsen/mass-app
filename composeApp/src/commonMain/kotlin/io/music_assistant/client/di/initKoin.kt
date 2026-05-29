@@ -1,6 +1,7 @@
 package io.music_assistant.client.di
 
 import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import coil3.SingletonImageLoader
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.imageloader.WebRTCImageFetcher
@@ -13,8 +14,13 @@ import org.koin.mp.KoinPlatform
 
 fun initKoin(
     vararg platformModules: Module,
+    verboseLogging: Boolean = false,
     config: KoinAppDeclaration? = null,
 ) {
+    // Release builds drop Debug/Verbose logs: the WebSocket layer emits ~4 debug
+    // lines/sec for the idle clock-sync heartbeat, which otherwise floods (and
+    // evicts useful entries from) InMemoryLogWriter for the entire session.
+    Logger.setMinSeverity(if (verboseLogging) Severity.Verbose else Severity.Info)
     Logger.addLogWriter(InMemoryLogWriter)
     startKoin {
         config?.invoke(this)

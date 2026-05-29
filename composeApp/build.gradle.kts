@@ -100,6 +100,7 @@ kotlin {
             implementation(libs.ktor.client.json)
 //            implementation(libs.ktor.client.logging)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.atomicfu)
 
             api(libs.koin.core)
             implementation(libs.koin.compose)
