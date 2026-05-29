@@ -39,6 +39,7 @@
   <string name="auth_show_password">Show password</string>
   <string name="auth_title">Authentication</string>
   <string name="auth_username">Username</string>
+  <string name="banner_no_network">No network available</string>
   <string name="banner_reconnecting">Reconnecting… (attempt %1$d)</string>
   <string name="bound_player_joined_to">%1$s is joined to %2$s\n(tap to view)</string>
   <string name="bound_player_part_of_group">%1$s is part of group %2$s\n(tap to view)</string>

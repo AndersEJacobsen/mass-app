@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.music_assistant.client.api.ServiceClient
+import io.music_assistant.client.utils.NetworkMonitor
 import io.music_assistant.client.utils.SessionState
 import kotlinx.coroutines.delay
 import musicassistantclient.composeapp.generated.resources.*
@@ -40,19 +41,11 @@ fun ConnectionStatusBanner(
     delay: Long = 3000,
 ) {
     val serviceClient: ServiceClient = koinInject()
+    val networkMonitor: NetworkMonitor = koinInject()
     val sessionState by serviceClient.sessionState.collectAsStateWithLifecycle()
+    val isOnline by networkMonitor.isAvailable.collectAsStateWithLifecycle()
 
-    // Determine banner state
-    // Only show banner during reconnection attempts
-    // On max attempts reached, navigate to Settings instead (handled in AppNavigation)
-    val bannerState = when (sessionState) {
-        is SessionState.Reconnecting -> {
-            val attempt = (sessionState as SessionState.Reconnecting).attempt
-            BannerState.Reconnecting(attempt)
-        }
-
-        else -> null
-    }
+    val bannerState = reconnectionBannerState(sessionState, isOnline)
 
     // Delay visibility to not spam in cases reconnecting is fast
     var isVisible by remember { mutableStateOf(false) }
@@ -70,9 +63,14 @@ fun ConnectionStatusBanner(
         enter = expandVertically(),
         exit = shrinkVertically(),
     ) {
-        bannerState?.let { state ->
-            ReconnectingBanner(
-                attempt = state.attempt,
+        bannerState?.let { banner ->
+            StatusBanner(
+                text = when (banner) {
+                    is BannerState.Reconnecting ->
+                        stringResource(Res.string.banner_reconnecting, banner.attempt)
+
+                    BannerState.NoNetwork -> stringResource(Res.string.banner_no_network)
+                },
                 onCancel = { serviceClient.disconnectByUser() },
                 modifier = modifier,
             )
@@ -80,13 +78,23 @@ fun ConnectionStatusBanner(
     }
 }
 
-private sealed interface BannerState {
+internal sealed interface BannerState {
     data class Reconnecting(val attempt: Int) : BannerState
+    data object NoNetwork : BannerState
 }
 
+// While reconnecting, offline means the loop is parked waiting for network, not retrying.
+internal fun reconnectionBannerState(sessionState: SessionState, isOnline: Boolean): BannerState? =
+    when (sessionState) {
+        is SessionState.Reconnecting ->
+            if (isOnline) BannerState.Reconnecting(sessionState.attempt) else BannerState.NoNetwork
+
+        else -> null
+    }
+
 @Composable
-private fun ReconnectingBanner(
-    attempt: Int,
+private fun StatusBanner(
+    text: String,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -111,7 +119,7 @@ private fun ReconnectingBanner(
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Text(
-                    text = stringResource(Res.string.banner_reconnecting, attempt),
+                    text = text,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )

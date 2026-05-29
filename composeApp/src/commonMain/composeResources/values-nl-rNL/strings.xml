@@ -39,6 +39,7 @@
   <string name="auth_show_password">Wachtwoord tonen</string>
   <string name="auth_title">Authenticatie</string>
   <string name="auth_username">Gebruikersnaam</string>
+  <string name="banner_no_network">Geen netwerk beschikbaar</string>
   <string name="banner_reconnecting">Opnieuw verbinden… (poging %1$d)</string>
   <string name="bound_player_joined_to">%1$s is verbonden met %2$s\n(tik om te bekijken)</string>
   <string name="bound_player_part_of_group">%1$s is onderdeel van groep %2$s\n(tik om te bekijken)</string>
