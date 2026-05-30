@@ -1,4 +1,8 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+@file:OptIn(
+    kotlinx.cinterop.ExperimentalForeignApi::class,
+    kotlinx.cinterop.BetaInteropApi::class,
+    kotlin.experimental.ExperimentalNativeApi::class,
+)
 
 package io.music_assistant.client
 
@@ -15,6 +19,7 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
 import platform.Foundation.writeToFile
+import kotlin.native.Platform
 
 /**
  * Idempotent KMP/Koin initialization. Called from two places:
@@ -35,7 +40,7 @@ fun bootstrapKmp() {
 }
 
 private val kmpBootstrap: Unit by lazy {
-    initKoin(iosModule())
+    initKoin(iosModule(), verboseLogging = Platform.isDebugBinary)
     cleanupStaleLogFile()
     installCrashHandler()
 }
