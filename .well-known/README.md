@@ -15,16 +15,7 @@ both `www.` and the apex if both hosts should resolve links.
 ## `assetlinks.json` (Android App Links)
 
 `sha256_cert_fingerprints` lists the signing certs of the APKs users actually
-install. The value committed here is the **debug keystore** fingerprint
-(`~/.android/debug.keystore`) — the cert that signs the `selfSignedRelease`
-build distributed to users (see `androidApp/build.gradle.kts` and the ADI note
-in project memory).
-
-⚠️ **If the app is also installed from Google Play with Play App Signing**, Play
-re-signs the APK with a Play-managed key. That key's SHA256 is **not** the one
-below — copy it from Play Console → *Test and release* → *App integrity* → *App
-signing key certificate* and **add it to the array** (multiple fingerprints are
-allowed). Without it, Play-installed users won't get auto-verified links.
+install.
 
 Verify after hosting:
 `adb shell pm get-app-links io.music_assistant.client` → look for `verified`.
