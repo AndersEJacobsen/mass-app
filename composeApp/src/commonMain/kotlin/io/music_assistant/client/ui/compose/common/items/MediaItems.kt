@@ -916,6 +916,7 @@ fun BoxScope.ProgressBadge(
 internal fun TrackRowItem(
     modifier: Modifier = Modifier,
     item: Track,
+    isAlbumRow: Boolean,
     onClick: (Track) -> Unit,
     onLongClick: (Track) -> Unit,
     providerIconFetcher: (@Composable (Modifier, String) -> Unit)?,
@@ -924,12 +925,25 @@ internal fun TrackRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
-            TrackImage(item)
-            Badges(
-                item = item,
-                providerIconFetcher = providerIconFetcher,
-            )
+        prefixContent = if (isAlbumRow) {
+            item.trackNumber?.toString()?.let { trackNumber ->
+                {
+                    Text(
+                        modifier = Modifier.align(Alignment.Center),
+                        text = trackNumber,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        } else {
+            {
+                TrackImage(item)
+                Badges(
+                    item = item,
+                    providerIconFetcher = providerIconFetcher,
+                )
+            }
         },
         onClick = { onClick(item) },
         onLongClick = { onLongClick(item) },
@@ -948,7 +962,7 @@ internal fun AlbumRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             AlbumImage(item)
             Badges(
                 item = item,
@@ -972,7 +986,7 @@ internal fun ArtistRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             ArtistImage(item)
             Badges(
                 item = item,
@@ -996,7 +1010,7 @@ internal fun PlaylistRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             PlaylistImage(item)
             Badges(
                 item = item,
@@ -1020,7 +1034,7 @@ internal fun PodcastRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             PodcastImage(item)
             Badges(
                 item = item,
@@ -1044,7 +1058,7 @@ internal fun PodcastEpisodeRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             PodcastEpisodeImage(item)
             Badges(
                 item = item,
@@ -1072,7 +1086,7 @@ internal fun RadioRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             RadioImage(item)
             Badges(
                 item = item,
@@ -1166,7 +1180,7 @@ internal fun GenreRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             GenreImage(item)
             Badges(
                 item = item,
@@ -1190,7 +1204,7 @@ internal fun AudiobookRowItem(
         modifier = modifier,
         name = item.displayName,
         subtitle = item.localizedSubtitle(),
-        imageContent = {
+        prefixContent = {
             AudiobookImage(item)
             Badges(
                 item = item,
@@ -1211,7 +1225,7 @@ private fun RowItem(
     modifier: Modifier = Modifier,
     name: String,
     subtitle: String?,
-    imageContent: @Composable BoxScope.() -> Unit,
+    prefixContent: @Composable (BoxScope.() -> Unit)?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -1223,11 +1237,13 @@ private fun RowItem(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(rowImageSize())) { imageContent() }
-        Spacer(Modifier.width(12.dp))
+        prefixContent?.let {
+            Box(modifier = Modifier.size(rowImageSize())) { it() }
+            Spacer(Modifier.width(12.dp))
+        }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = name,
