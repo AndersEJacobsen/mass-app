@@ -11,6 +11,7 @@ import io.music_assistant.client.api.DeepLinkBus
 import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.auth.AuthenticationManager
+import io.music_assistant.client.carplay.CarPlayStrings
 import io.music_assistant.client.data.MainDataSource
 import io.music_assistant.client.data.executeLocalPlayerDispatch
 import io.music_assistant.client.data.model.client.MediaType
@@ -89,6 +90,16 @@ object KmpHelper : KoinComponent {
     fun handleDeepLink(urlString: String) = deepLinkBus.handle(urlString)
 
     // MARK: - External Consumer Lifecycle (CarPlay)
+
+    /**
+     * Resolve CarPlay UI strings for the current locale off the shared Compose
+     * catalog. Async because the resource read is suspending; CarPlay defers
+     * building its first template until [completion] fires so immutable
+     * template titles are never blank.
+     */
+    fun loadCarPlayStrings(completion: (CarPlayStrings) -> Unit) {
+        mainScope.launch { completion(CarPlayStrings.load()) }
+    }
 
     fun onExternalConsumerActive() = serviceClient.onExternalConsumerActive()
     fun onExternalConsumerInactive() = serviceClient.onExternalConsumerInactive()

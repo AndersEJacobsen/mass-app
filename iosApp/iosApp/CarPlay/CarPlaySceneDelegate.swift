@@ -19,6 +19,10 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var isReady: Bool = false
     private var readinessSubscription: Cancellable?
 
+    // Localized CarPlay strings, resolved from the shared Compose catalog once
+    // per connect (see didConnect). Always set before any template is built.
+    private var strings: CarPlayStrings?
+
     // Weakly held so a connectivity restore can re-fire the homepage fetch
     // without retaining the template after CarPlay disconnects.
     private weak var libraryTemplate: CPListTemplate?
@@ -43,13 +47,20 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         recommendationsFetchGen = 0
         isReady = false
         KmpHelper.shared.onExternalConsumerActive()
-        // The initial fetch is driven from handleReadinessChange's first
-        // emission, not from setupTemplates — see createLibraryTemplate.
+        // Resolve localized strings before building templates: CarPlay template
+        // titles are immutable after construction, so the active-locale strings
+        // must be known up front. Subscribing to readiness inside the completion
+        // preserves the subscribe-before-setupTemplates ordering that drives the
+        // initial Library fetch (see handleReadinessChange / createLibraryTemplate).
         // `(Boolean) -> Unit` from Kotlin exposes as `KotlinBoolean`; unbox.
-        readinessSubscription = KmpHelper.shared.observeReadiness { [weak self] ready in
-            self?.handleReadinessChange(ready.boolValue)
+        KmpHelper.shared.loadCarPlayStrings { [weak self] loaded in
+            guard let self = self, self.interfaceController != nil else { return }
+            self.strings = loaded
+            self.readinessSubscription = KmpHelper.shared.observeReadiness { [weak self] ready in
+                self?.handleReadinessChange(ready.boolValue)
+            }
+            self.setupTemplates()
         }
-        setupTemplates()
     }
 
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene, didDisconnectInterfaceController interfaceController: CPInterfaceController) {
@@ -108,12 +119,13 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     /// Idempotent — CarPlay throws on stacked presentations.
     private func showOfflineAlert() {
         guard let interfaceController = interfaceController,
+              let strings = strings,
               interfaceController.presentedTemplate == nil
         else { return }
         let alert = CPAlertTemplate(
-            titleVariants: ["Not connected — try again when reconnected"],
+            titleVariants: [strings.offlineAlert],
             actions: [
-                CPAlertAction(title: "OK", style: .default) { [weak self] _ in
+                CPAlertAction(title: strings.ok, style: .default) { [weak self] _ in
                     self?.interfaceController?.dismissTemplate(animated: true, completion: nil)
                 }
             ]
@@ -125,7 +137,8 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     /// the local player gains a track (subscription-based because the
     /// local-player value is cleared on backgrounded disconnect).
     private func setupTemplates() {
-        let libraryTemplate = createLibraryTemplate()
+        guard let strings = strings else { return }
+        let libraryTemplate = createLibraryTemplate(strings)
         interfaceController?.setRootTemplate(libraryTemplate, animated: true) { [weak self] _, _ in
             self?.subscribeToLocalPlayerForInitialPush()
         }
@@ -154,17 +167,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     }
 
     // MARK: - UI Construction
-
-    // Match Material Design icons from HomeScreen.kt LibraryRow
-    private static let categoryIcons: [(name: String, symbol: String)] = [
-        ("Artists", "mic.fill"),                          // Icons.Default.Mic
-        ("Albums", "opticaldisc.fill"),                   // Icons.Default.Album
-        ("Tracks", "music.note"),                         // Icons.Default.MusicNote
-        ("Playlists", "list.bullet.rectangle.fill"),      // Icons.AutoMirrored.Filled.FeaturedPlayList
-        ("Audiobooks", "book.fill"),                      // Icons.AutoMirrored.Filled.MenuBook
-        ("Podcasts", "antenna.radiowaves.left.and.right"), // Icons.Default.Podcasts
-        ("Radio", "radio.fill"),                          // Icons.Default.Radio
-    ]
 
     // App theme colors from Color.kt, adaptive for light/dark mode
     // Light: primaryContainer ≈ #E0DEFF, primary = #575992
@@ -218,10 +220,10 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         return asset.image(with: UITraitCollection.current)
     }
 
-    private func createLibraryTemplate() -> CPListTemplate {
+    private func createLibraryTemplate(_ strings: CarPlayStrings) -> CPListTemplate {
         // "Browse" item pushes a CPGridTemplate with all categories
         let browseIcon = Self.dynamicCategoryImage(symbol: "square.grid.2x2.fill", size: CPListItem.maximumImageSize)
-        let browseItem = CPListItem(text: "Browse", detailText: "Artists, Albums, Tracks & more", image: browseIcon)
+        let browseItem = CPListItem(text: strings.browse, detailText: strings.browseSubtitle, image: browseIcon)
         browseItem.handler = { [weak self] _, completion in
             self?.pushBrowseGrid()
             completion()
@@ -234,14 +236,14 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         )
 
         // Section 2+: Recommendation folders (starts with loading placeholder)
-        let loadingItem = CPListItem(text: "Loading...", detailText: nil)
+        let loadingItem = CPListItem(text: strings.loading, detailText: nil)
         let loadingSection = CPListSection(
             items: [loadingItem],
             header: nil,
             sectionIndexTitle: nil
         )
 
-        let libraryList = CPListTemplate(title: "Library", sections: [browseSection, loadingSection])
+        let libraryList = CPListTemplate(title: strings.library, sections: [browseSection, loadingSection])
 
         // Weak refs feed `refreshLibraryOnReconnect`, which is the sole
         // path that fires `loadRecommendations` — including the initial
@@ -255,6 +257,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     // MARK: - Data Loading Helpers
 
     private func loadRecommendations(for template: CPListTemplate, browseSection: CPListSection) {
+        guard let strings = strings else { return }
         recommendationsFetchGen += 1
         let myGen = recommendationsFetchGen
         os_log("CP: loadRecommendations gen=%{public}d", log: cpLog, type: .default, myGen)
@@ -274,7 +277,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             guard let folders = folders else {
                 template.updateSections([
                     browseSection,
-                    CPListSection(items: [self.disconnectedRow()], header: nil, sectionIndexTitle: nil),
+                    CPListSection(items: [self.disconnectedRow(strings)], header: nil, sectionIndexTitle: nil),
                 ])
                 return
             }
@@ -282,7 +285,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             if folders.isEmpty {
                 template.updateSections([
                     browseSection,
-                    self.emptyStateSection(text: "No recommendations"),
+                    self.emptyStateSection(text: strings.empty),
                 ])
                 return
             }
@@ -357,24 +360,27 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         // Gate at entry. The grid template's category fetchers would otherwise
         // spin indefinitely on a dead transport.
         guard isReady else { showOfflineAlert(); return }
+        guard let strings = strings else { return }
         let imageSize = CGSize(width: 100, height: 100)
         let manager = CarPlayContentManager.shared
-        let categories: [(title: String, fetcher: (@escaping ([CPListItem]?) -> Void) -> Void)] = [
-            ("Artists",    manager.fetchArtists),
-            ("Albums",     manager.fetchAlbums),
-            ("Tracks",     manager.fetchTracks),
-            ("Playlists",  manager.fetchPlaylists),
-            ("Audiobooks", manager.fetchAudiobooks),
-            ("Podcasts",   manager.fetchPodcasts),
-            ("Radio",      manager.fetchRadioStations),
+        // Symbols match Material Design icons from HomeScreen.kt LibraryRow;
+        // titles come from the shared catalog so they follow the app locale.
+        let categories: [(title: String, symbol: String, fetcher: (@escaping ([CPListItem]?) -> Void) -> Void)] = [
+            (strings.artists,    "mic.fill",                          manager.fetchArtists),       // Icons.Default.Mic
+            (strings.albums,     "opticaldisc.fill",                  manager.fetchAlbums),        // Icons.Default.Album
+            (strings.tracks,     "music.note",                        manager.fetchTracks),        // Icons.Default.MusicNote
+            (strings.playlists,  "list.bullet.rectangle.fill",        manager.fetchPlaylists),     // Icons.AutoMirrored.Filled.FeaturedPlayList
+            (strings.audiobooks, "book.fill",                         manager.fetchAudiobooks),    // Icons.AutoMirrored.Filled.MenuBook
+            (strings.podcasts,   "antenna.radiowaves.left.and.right", manager.fetchPodcasts),      // Icons.Default.Podcasts
+            (strings.radio,      "radio.fill",                        manager.fetchRadioStations), // Icons.Default.Radio
         ]
-        let buttons = zip(Self.categoryIcons, categories).map { icon, category -> CPGridButton in
-            let image = Self.dynamicCategoryImage(symbol: icon.symbol, size: imageSize)
-            return CPGridButton(titleVariants: [icon.name], image: image) { [weak self] _ in
+        let buttons = categories.map { category -> CPGridButton in
+            let image = Self.dynamicCategoryImage(symbol: category.symbol, size: imageSize)
+            return CPGridButton(titleVariants: [category.title], image: image) { [weak self] _ in
                 self?.pushCategoryTemplate(title: category.title, fetcher: category.fetcher)
             }
         }
-        let gridTemplate = CPGridTemplate(title: "Browse", gridButtons: buttons)
+        let gridTemplate = CPGridTemplate(title: strings.browse, gridButtons: buttons)
         self.interfaceController?.pushTemplate(gridTemplate, animated: true, completion: nil)
     }
 
@@ -384,8 +390,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         title: String,
         fetcher: (@escaping ([CPListItem]?) -> Void) -> Void
     ) {
+        guard let strings = strings else { return }
         let template = CPListTemplate(title: title, sections: [])
-        let loadingItem = CPListItem(text: "Loading...", detailText: nil)
+        let loadingItem = CPListItem(text: strings.loading, detailText: nil)
         template.updateSections([CPListSection(items: [loadingItem])])
 
         self.interfaceController?.pushTemplate(template, animated: true, completion: nil)
@@ -394,13 +401,13 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             guard let self = self else { return }
             if let items = items {
                 if items.isEmpty {
-                    template.updateSections([emptyStateSection(text: "No \(title.lowercased())")])
+                    template.updateSections([self.emptyStateSection(text: strings.empty)])
                 } else {
                     self.attachHandlers(to: items)
                     template.updateSections([CPListSection(items: items)])
                 }
             } else {
-                template.updateSections([CPListSection(items: [disconnectedRow()])])
+                template.updateSections([CPListSection(items: [self.disconnectedRow(strings)])])
             }
         }
     }
@@ -461,9 +468,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     // MARK: - Drilldown push helpers
 
     private func pushAlbumsForArtist(_ artist: Artist) {
+        guard let strings = strings else { return }
         pushDrilldown(
-            title: "Albums by \(artist.displayName)",
-            emptyText: "No albums for \(artist.displayName)",
+            title: strings.albumsByArtist(name: artist.displayName),
             bulkActionParent: artist
         ) { completion in
             CarPlayContentManager.shared.fetchAlbumsForArtist(artist, completion: completion)
@@ -473,7 +480,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushTracksForAlbum(_ album: Album) {
         pushDrilldown(
             title: album.displayName,
-            emptyText: "No tracks in this album",
             bulkActionParent: album
         ) { completion in
             CarPlayContentManager.shared.fetchTracksForAlbum(album, completion: completion)
@@ -483,7 +489,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private func pushTracksForPlaylist(_ playlist: Playlist) {
         pushDrilldown(
             title: playlist.displayName,
-            emptyText: "No tracks in this playlist",
             bulkActionParent: playlist
         ) { completion in
             CarPlayContentManager.shared.fetchTracksForPlaylist(playlist, completion: completion)
@@ -494,12 +499,12 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     /// empty-state on `[]`, disconnected row on `nil` (timeout).
     private func pushDrilldown(
         title: String,
-        emptyText: String,
         bulkActionParent: AppMediaItem,
         fetcher: @escaping (@escaping ([CPListItem]?) -> Void) -> Void
     ) {
+        guard let strings = strings else { return }
         let template = CPListTemplate(title: title, sections: [])
-        let loadingItem = CPListItem(text: "Loading...", detailText: nil)
+        let loadingItem = CPListItem(text: strings.loading, detailText: nil)
         template.updateSections([CPListSection(items: [loadingItem])])
         self.interfaceController?.pushTemplate(template, animated: true, completion: nil)
 
@@ -507,14 +512,14 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             guard let self = self else { return }
             if let items = items {
                 if items.isEmpty {
-                    template.updateSections([emptyStateSection(text: emptyText)])
+                    template.updateSections([self.emptyStateSection(text: strings.empty)])
                 } else {
                     self.attachHandlers(to: items)
                     let prefix = self.bulkActionRows(for: bulkActionParent)
                     template.updateSections([CPListSection(items: prefix + items)])
                 }
             } else {
-                template.updateSections([CPListSection(items: [disconnectedRow()])])
+                template.updateSections([CPListSection(items: [self.disconnectedRow(strings)])])
             }
         }
     }
@@ -522,8 +527,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     // MARK: - Bulk actions
 
     private func bulkActionRows(for parent: AppMediaItem) -> [CPListItem] {
+        guard let strings = strings else { return [] }
         let playAll = CPListItem(
-            text: "Play All",
+            text: strings.playAll,
             detailText: nil,
             image: UIImage(systemName: "play.fill")
         )
@@ -533,7 +539,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         }
 
         let addAll = CPListItem(
-            text: "Add All to Queue",
+            text: strings.addAllToQueue,
             detailText: nil,
             image: UIImage(systemName: "text.badge.plus")
         )
@@ -571,9 +577,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
     /// Non-tappable row — fetcher timed out. Library auto-recovers via the
     /// readiness sub; drilldowns require the user to back out and re-enter.
-    private func disconnectedRow() -> CPListItem {
+    private func disconnectedRow(_ strings: CarPlayStrings) -> CPListItem {
         let item = CPListItem(
-            text: "Disconnected — reconnecting…",
+            text: strings.disconnected,
             detailText: nil,
             image: UIImage(systemName: "wifi.exclamationmark")
         )
