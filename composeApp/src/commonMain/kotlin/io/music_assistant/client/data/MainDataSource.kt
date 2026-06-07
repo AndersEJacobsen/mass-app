@@ -665,6 +665,10 @@ private data class PlayerBuildInputs(
                         localPlayerRepository.onInitialPlayersReceived(hasLocalPlayer = false)
                     } else {
                         stopSendspin()
+                        // User turned Sendspin off — the local player is gone for good,
+                        // so drop its UI state and any queued offline commands.
+                        localPlayerRepository.clearState()
+                        localPlayerRepository.clearCommandQueue()
                     }
                 }
             }
@@ -926,6 +930,7 @@ private data class PlayerBuildInputs(
         _queueInfos.update { emptyList() }
         positionTracker.clear()
         localPlayerRepository.clearState()
+        localPlayerRepository.clearCommandQueue()
         // Note: _providersIcons deliberately NOT cleared (static data)
     }
 
@@ -1135,8 +1140,11 @@ private data class PlayerBuildInputs(
             sendspinClient = null
         }
         _sendspinState.value = null
-        // Clear local player data immediately so the UI reflects the change
-        localPlayerRepository.clearState()
+        // Deliberately preserve local-player state and the offline command queue:
+        // most callers (background, reconnect, persistent error) are transient and
+        // rely on drainCommandQueue() replaying queued intent — e.g. a post-
+        // interruption resume — once the transport returns. Genuine resets clear
+        // them explicitly (clearAllData / Sendspin-disabled).
         // Fully release the shared audio pipeline (AudioTrack, decoder, etc.)
         // A fresh pipeline will be created on the next initSendspinIfEnabled()
         sendspinClientFactory.destroyPipeline()

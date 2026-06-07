@@ -234,8 +234,16 @@ class LocalPlayerRepository(
 
     // --- Lifecycle ---
 
+    /** Drop the optimistic local-player UI state. Leaves the command queue intact —
+     *  a transient teardown (background, reconnect) must not discard intent that
+     *  [drainCommandQueue] is meant to replay on recovery. */
     fun clearState() {
         _localPlayerData.update { null }
+    }
+
+    /** Discard pending offline commands. Only on a genuine session reset (logout,
+     *  terminal auth failure, Sendspin disabled) — never on transient teardown. */
+    fun clearCommandQueue() {
         launch { commandQueueMutex.withLock { commandQueue.clear() } }
     }
 
