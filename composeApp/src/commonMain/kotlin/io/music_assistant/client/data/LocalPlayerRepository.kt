@@ -234,6 +234,11 @@ class LocalPlayerRepository(
 
     // --- Lifecycle ---
 
+    /** Full local-player reset: drop the optimistic UI state and any pending offline
+     *  commands. Called only on a genuine session reset (logout, terminal auth failure,
+     *  Sendspin disabled). NOT called on transient teardown — [MainDataSource.stopSendspin]
+     *  deliberately preserves both so [drainCommandQueue] can replay a queued resume once
+     *  the transport returns. */
     fun clearState() {
         _localPlayerData.update { null }
         launch { commandQueueMutex.withLock { commandQueue.clear() } }
