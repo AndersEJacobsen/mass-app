@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import io.music_assistant.client.player.MediaPlayerController
 import io.music_assistant.client.player.sendspin.audio.AudioPipeline
 import io.music_assistant.client.player.sendspin.model.CommandValue
+import io.music_assistant.client.player.sendspin.model.GoodbyeReason
 import io.music_assistant.client.player.sendspin.model.PlayerStateValue
 import io.music_assistant.client.player.sendspin.model.ServerCommandMessage
 import io.music_assistant.client.player.sendspin.model.StreamMetadataPayload
@@ -372,7 +373,7 @@ class SendspinClient(
         messageDispatcher?.sendCommand(command, value)
     }
 
-    suspend fun stop() {
+    suspend fun stop(reason: GoodbyeReason) {
         val current = _state.value
         // Stop state reporting
         stateReporter?.stop()
@@ -383,7 +384,7 @@ class SendspinClient(
             current is SendspinState.Synchronized
         ) {
             try {
-                messageDispatcher?.sendGoodbye("shutdown")
+                messageDispatcher?.sendGoodbye(reason)
                 delay(100) // Give it time to send
             } catch (e: Exception) {
                 logger.e(e) { "Error sending goodbye" }

@@ -17,6 +17,7 @@ import io.music_assistant.client.player.sendspin.model.ClientTimePayload
 import io.music_assistant.client.player.sendspin.model.CommandPayload
 import io.music_assistant.client.player.sendspin.model.CommandValue
 import io.music_assistant.client.player.sendspin.model.GoodbyePayload
+import io.music_assistant.client.player.sendspin.model.GoodbyeReason
 import io.music_assistant.client.player.sendspin.model.GroupUpdateMessage
 import io.music_assistant.client.player.sendspin.model.PlayerStateObject
 import io.music_assistant.client.player.sendspin.model.PlayerStateValue
@@ -246,10 +247,10 @@ class MessageDispatcher(
         transport.sendText(json)
     }
 
-    suspend fun sendGoodbye(reason: String) {
-        logger.i { "Sending client/goodbye: $reason" }
+    suspend fun sendGoodbye(reason: GoodbyeReason) {
+        logger.i { "Sending client/goodbye: ${reason.wire}" }
         val message = ClientGoodbyeMessage(
-            payload = GoodbyePayload(reason = reason),
+            payload = GoodbyePayload(reason = reason.wire),
         )
         val json = myJson.encodeToString(message)
         transport.sendText(json)

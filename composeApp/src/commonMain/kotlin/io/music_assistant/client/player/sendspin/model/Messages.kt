@@ -359,3 +359,15 @@ data class ClientGoodbyeMessage(
 data class GoodbyePayload(
     val reason: String? = null,
 )
+
+/**
+ * Wire reasons for `client/goodbye`, mirroring aiosendspin's `GoodbyeReason`.
+ * The server acts on this: [Shutdown]/[UserRequest] trigger immediate session
+ * teardown, while [Restart] is a warm, reconnect-friendly disconnect (30s grace)
+ * that preserves queue/resume state.
+ */
+enum class GoodbyeReason(val wire: String) {
+    Shutdown("shutdown"),
+    Restart("restart"),
+    UserRequest("user_request"),
+}

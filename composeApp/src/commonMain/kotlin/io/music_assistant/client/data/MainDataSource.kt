@@ -46,6 +46,7 @@ import io.music_assistant.client.player.sendspin.SendspinClientFactory
 import io.music_assistant.client.player.sendspin.SendspinError
 import io.music_assistant.client.player.sendspin.SendspinState
 import io.music_assistant.client.player.sendspin.WebRTCSendspinChannelExhausted
+import io.music_assistant.client.player.sendspin.model.GoodbyeReason
 import io.music_assistant.client.settings.SettingsRepository
 import io.music_assistant.client.ui.Timings
 import io.music_assistant.client.ui.compose.common.DataState
@@ -454,7 +455,7 @@ class MainDataSource(
 
                             if (isTerminalAuthFailure) {
                                 // Auth permanently failed — stop everything
-                                stopSendspin()
+                                stopSendspin(GoodbyeReason.Shutdown)
                                 clearAllData()
                             } else {
                                 // Transient: AwaitingServerInfo or auth in progress.
@@ -513,7 +514,7 @@ class MainDataSource(
 
                     SessionState.Connecting -> {
                         log.i { "Connecting - stopping Sendspin" }
-                        stopSendspin()
+                        stopSendspin(GoodbyeReason.Restart)
                         updateJob?.cancel()
                         updateJob = null
                         watchJob?.cancel()
@@ -539,7 +540,7 @@ class MainDataSource(
                             SessionState.Disconnected.ByUser -> {
                                 // Intentional logout - clear everything
                                 log.i { "Disconnected by user - clearing all data" }
-                                stopSendspin()
+                                stopSendspin(GoodbyeReason.UserRequest)
                                 clearAllData()
                                 updateJob?.cancel()
                                 updateJob = null
@@ -571,7 +572,7 @@ class MainDataSource(
                                         }
 
                                         // Stop Sendspin (can't stream without connection)
-                                        stopSendspin()
+                                        stopSendspin(GoodbyeReason.Restart)
                                     }
 
                                     is DataState.Loading, is DataState.NoData, is DataState.Error -> {
@@ -612,7 +613,7 @@ class MainDataSource(
                                     }
                                 }
 
-                                stopSendspin()
+                                stopSendspin(GoodbyeReason.Restart)
                                 updateJob?.cancel()
                                 updateJob = null
                                 watchJob?.cancel()
@@ -622,7 +623,7 @@ class MainDataSource(
                             SessionState.Disconnected.Initial, SessionState.Disconnected.NoServerData -> {
                                 // App startup or no server configured - clear all
                                 log.i { "Disconnected (${sessionState::class.simpleName}) - clearing data" }
-                                stopSendspin()
+                                stopSendspin(GoodbyeReason.Shutdown)
                                 clearAllData()
                                 updateJob?.cancel()
                                 updateJob = null
@@ -665,7 +666,7 @@ class MainDataSource(
                         // before Sendspin fully connects and server confirms the player
                         localPlayerRepository.onInitialPlayersReceived(hasLocalPlayer = false)
                     } else {
-                        stopSendspin()
+                        stopSendspin(GoodbyeReason.UserRequest)
                         // User turned Sendspin off — the local player is gone for good.
                         // stopSendspin() no longer resets it (transient teardowns must
                         // preserve a queued resume), so clear it explicitly here.
@@ -738,6 +739,16 @@ class MainDataSource(
                         )
                     }
                 }
+        }
+        // Arms `hasActivePlayback` so backgrounding mid-playback doesn't tear down
+        // Sendspin (goodbye=shutdown → audio stops, server cold-resumes. Driven off
+        // logical `isPlaying`, which survives the transient transport blip — unlike
+        // the Sendspin sync state.
+        launch {
+            localPlayer
+                .map { it?.player?.isPlaying == true }
+                .distinctUntilChanged()
+                .collect { if (it) apiClient.onPlaybackActive() else apiClient.onPlaybackInactive() }
         }
     }
 
@@ -985,7 +996,7 @@ class MainDataSource(
 
                 is SendspinState.Idle -> Unit
             }
-            existing.stop()
+            existing.stop(GoodbyeReason.Restart)
             existing.close()
         }
 
@@ -1127,13 +1138,13 @@ class MainDataSource(
      * Stop Sendspin player if running.
      * Destroys the shared audio pipeline so the AudioTrack is fully released.
      */
-    private suspend fun stopSendspin() = sendspinMutex.withLock {
+    private suspend fun stopSendspin(reason: GoodbyeReason) = sendspinMutex.withLock {
         // Cancel monitor jobs FIRST to prevent old state transitions from leaking
         cancelSendspinMonitorJobs()
         sendspinRetryCount = 0
         sendspinClient?.let { client ->
             try {
-                client.stop()
+                client.stop(reason)
                 client.close()
             } catch (e: Exception) {
                 log.e(e) { "Error stopping Sendspin client" }
@@ -1974,7 +1985,7 @@ class MainDataSource(
     fun onAppClosed() {
         if (!isAnythingPlaying.value) {
             log.i { "App closed with no active playback — stopping Sendspin" }
-            launch { stopSendspin() }
+            launch { stopSendspin(GoodbyeReason.Shutdown) }
         }
     }
 
