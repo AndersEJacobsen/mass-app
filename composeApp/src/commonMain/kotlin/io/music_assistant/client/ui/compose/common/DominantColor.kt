@@ -18,17 +18,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import coil3.compose.LocalPlatformContext
 import com.kmpalette.palette.graphics.Palette
+import io.music_assistant.client.data.model.server.MediaItemPalette
+import io.music_assistant.client.data.model.server.RgbColor
 import org.koin.compose.koinInject
 
 /**
  * Theme-independent extraction result kept in [DominantColorViewModel]'s cache.
- * Both tint variants are pre-computed so consumers select cheaply by surface luminance.
+ * A single vivid [background] serves both themes; the readable tint is pre-computed
+ * per surface luminance so consumers select cheaply.
  */
 data class ExtractedColors(
-    val dominant: Color,
+    val background: Color,
     val tintOnDark: Color,
     val tintOnLight: Color,
 )
+
+private fun RgbColor.toColor() = Color(r, g, b) // Compose Color(Int, Int, Int) expects 0..255
+
+/**
+ * Build extraction colors from a server-provided palette. Uses the vivid `primary` (falling
+ * back to `accent`) as the single background for both themes and derives the readable control
+ * tint via [ensureReadable] — mirroring local artwork extraction so the server path looks
+ * equally punchy. The muted `background_*`/`on_*` slots are intentionally unused. Returns null
+ * when neither vivid slot is present, so the caller falls back to local extraction.
+ */
+fun MediaItemPalette.toExtractedColors(): ExtractedColors? {
+    val base = (primary ?: accent)?.toColor() ?: return null
+    return ExtractedColors(
+        background = base,
+        tintOnDark = base.ensureReadable(onDarkSurface = true),
+        tintOnLight = base.ensureReadable(onDarkSurface = false),
+    )
+}
 
 /**
  * Suspending fetcher used by [rememberAnimatedPlayerColors] — supplied by the screen
@@ -61,19 +82,23 @@ data class PlayerColors(
 @Composable
 fun rememberAnimatedPlayerColors(
     imageUrl: String?,
+    palette: MediaItemPalette?,
     fallback: Color,
     fetchColors: ExtractedColorsFetcher,
 ): State<PlayerColors> {
     val onDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-    val extracted by produceState<ExtractedColors?>(
+    val serverColors = remember(palette) { palette?.toExtractedColors() }
+    val localColors by produceState<ExtractedColors?>(
         initialValue = null,
         key1 = imageUrl,
+        key2 = serverColors,
     ) {
-        value = imageUrl?.let { fetchColors(it) }
+        value = if (serverColors != null) null else imageUrl?.let { fetchColors(it) }
     }
+    val extracted = serverColors ?: localColors
 
-    val targetDominant = extracted?.dominant ?: fallback
+    val targetDominant = extracted?.background ?: fallback
     val targetTint = extracted
         ?.let { if (onDark) it.tintOnDark else it.tintOnLight }
         ?: fallback.ensureReadable(onDarkSurface = onDark)
