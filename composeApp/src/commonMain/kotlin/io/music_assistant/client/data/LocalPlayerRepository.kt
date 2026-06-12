@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 
 class LocalPlayerRepository(
@@ -120,15 +121,16 @@ class LocalPlayerRepository(
     // --- Command queue (online: send immediately, offline: queue with dedup) ---
 
     suspend fun sendOrQueue(action: PlayerAction, request: Request) {
-        // Fast-path queue when known-offline avoids burning the gate's 10s timeout
-        // on actions the user already perceives as "do this when we're back."
-        // The Result.isFailure fallback closes the TOCTOU window where the state
-        // flips between the check and the send.
+        // Offline is certain-unsent, so a replay can't duplicate: queue anything.
         if (!apiClient.isReadyForCommands.value) {
             enqueue(action, request)
             return
         }
-        if (apiClient.sendRequest(request).isFailure) enqueue(action, request)
+        // A timeout or failure is ambiguous — the request may already have reached
+        // the server — so re-queue only commands that are safe to apply twice.
+        val result = withTimeoutOrNull(SEND_TIMEOUT_MS) { apiClient.sendRequest(request) }
+        val unconfirmed = result == null || result.isFailure
+        if (unconfirmed && action.isReplaySafe) enqueue(action, request)
     }
 
     fun drainCommandQueue() {
@@ -310,5 +312,44 @@ class LocalPlayerRepository(
     private companion object {
         /** Optimistic-bump offset; safely below any realistic server-confirmation RTT. */
         const val OPTIMISTIC_BUMP_EPSILON_S = 0.0001
+
+        /**
+         * Upper bound on a player-command round trip before we queue it for replay.
+         * Must exceed the JIT recovery gate (10s) inside [ServiceClient.sendRequest]
+         * so a request that spent the whole gate reconnecting still gets to send.
+         */
+        const val SEND_TIMEOUT_MS = 15_000L
     }
 }
+
+/**
+ * Whether applying [this] twice is harmless. Consulted only on an ambiguous send,
+ * where re-queuing a non-idempotent command would double-apply it. Exhaustive so a
+ * new [PlayerAction] can't be queued for replay without a deliberate safe/unsafe call.
+ */
+internal val PlayerAction.isReplaySafe: Boolean
+    get() = when (this) {
+        PlayerAction.TogglePlayPause,
+        PlayerAction.Next,
+        PlayerAction.Previous,
+        PlayerAction.VolumeUp,
+        PlayerAction.VolumeDown,
+        PlayerAction.GroupVolumeUp,
+        PlayerAction.GroupVolumeDown,
+        is PlayerAction.SeekBy,
+        -> false
+
+        PlayerAction.Play,
+        PlayerAction.Pause,
+        is PlayerAction.SeekTo,
+        is PlayerAction.VolumeSet,
+        is PlayerAction.ToggleMute,
+        is PlayerAction.GroupVolumeSet,
+        is PlayerAction.GroupToggleMute,
+        is PlayerAction.GroupManage,
+        is PlayerAction.ToggleShuffle,
+        is PlayerAction.ToggleRepeatMode,
+        is PlayerAction.ToggleDontStopTheMusic,
+        is PlayerAction.SetPlaybackSpeed,
+        -> true
+    }

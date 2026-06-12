@@ -21,14 +21,15 @@ import kotlin.test.assertTrue
  *
  * Functional: register a callback, feed the matching response (including
  * partial-then-final sequences), and the callback fires with the merged
- * `result`. `removeCallback` and `clear` prevent firing; auth error
+ * `result`. `removeCallback` prevents firing; `clear`/`failAllPending`
+ * resume pending callers with failure exactly once; auth error
  * code 20 triggers the [onAuthError] hook.
  *
  * Thread-safety: `registerCallback` / `removeCallback` run on the
  * request-issuing coroutine, while `handleResponse` runs on the websocket
  * message-collector coroutine. On Kotlin/Native those dispatch to
- * different threads, so the two `AtomicReference<Map>` fields must behave
- * correctly under real contention. Two stress tests exercise this on
+ * different threads, so the lock guarding callback/partial state must behave
+ * correctly under real contention. Stress tests exercise this on
  * `Dispatchers.Default` — on JVM unit tests that's the real multi-thread
  * pool, which is where the plain-`HashMap` implementation used to corrupt
  * its bucket array and throw `ArrayIndexOutOfBoundsException`.
@@ -46,7 +47,7 @@ class RpcEngineTest {
     fun finalResponseFiresRegisteredCallback() {
         val engine = engine()
         var received: Answer? = null
-        engine.registerCallback("m1") { received = it }
+        engine.registerCallback("m1") { received = it.getOrNull() }
 
         val handled = engine.handleResponse(
             message("""{"message_id": "m1", "result": {"ok": true}}"""),
@@ -73,7 +74,7 @@ class RpcEngineTest {
     fun partialResponsesAccumulateAndMergeIntoFinal() {
         val engine = engine()
         var received: Answer? = null
-        engine.registerCallback("m1") { received = it }
+        engine.registerCallback("m1") { received = it.getOrNull() }
 
         engine.handleResponse(
             message("""{"message_id": "m1", "partial": true, "result": [1, 2]}"""),
@@ -132,7 +133,7 @@ class RpcEngineTest {
         // response. The partials from the previous registration must not
         // leak into this one.
         var received: Answer? = null
-        engine.registerCallback("m1") { received = it }
+        engine.registerCallback("m1") { received = it.getOrNull() }
         engine.handleResponse(
             message("""{"message_id": "m1", "result": [99]}"""),
         )
@@ -143,19 +144,45 @@ class RpcEngineTest {
     }
 
     @Test
-    fun clearDropsAllPendingCallbacks() {
+    fun clearFailsAllPendingCallbacksExactlyOnce() {
         val engine = engine()
-        var firedA = false
-        var firedB = false
-        engine.registerCallback("m1") { firedA = true }
-        engine.registerCallback("m2") { firedB = true }
+        val resultsA = mutableListOf<Result<Answer>>()
+        val resultsB = mutableListOf<Result<Answer>>()
+        engine.registerCallback("m1") { resultsA += it }
+        engine.registerCallback("m2") { resultsB += it }
 
         engine.clear()
+        // Late responses after clear must not fire the callbacks again.
         engine.handleResponse(message("""{"message_id": "m1", "result": {}}"""))
         engine.handleResponse(message("""{"message_id": "m2", "result": {}}"""))
 
-        assertFalse(firedA)
-        assertFalse(firedB)
+        assertEquals(1, resultsA.size, "clear must resume the pending caller exactly once")
+        assertEquals(1, resultsB.size, "clear must resume the pending caller exactly once")
+        assertTrue(resultsA.single().isFailure, "clear must deliver failure, not success")
+        assertTrue(resultsB.single().isFailure, "clear must deliver failure, not success")
+    }
+
+    @Test
+    fun failAllPendingDeliversCauseAndDropsPartials() {
+        val engine = engine()
+        var received: Result<Answer>? = null
+        engine.registerCallback("m1") { received = it }
+        engine.handleResponse(
+            message("""{"message_id": "m1", "partial": true, "result": [1]}"""),
+        )
+
+        engine.failAllPending(IllegalStateException("Transport reconnecting"))
+
+        val seen = received
+        assertNotNull(seen)
+        assertTrue(seen.isFailure)
+        assertEquals("Transport reconnecting", seen.exceptionOrNull()?.message)
+
+        // A new request reusing the id must not see the stale partials.
+        var fresh: Answer? = null
+        engine.registerCallback("m1") { fresh = it.getOrNull() }
+        engine.handleResponse(message("""{"message_id": "m1", "result": [99]}"""))
+        assertEquals("[99]", fresh?.json?.get("result")?.toString())
     }
 
     @Test
@@ -197,9 +224,9 @@ class RpcEngineTest {
 
     /**
      * Fires many parallel register/respond cycles on `Dispatchers.Default`
-     * so the AtomicReference CAS loops inside [RpcEngine] run under real
+     * so [RpcEngine]'s shared callback/partial lock runs under real
      * contention. The contract: no thrown exception, and every registered
-     * callback fires exactly once (no lost updates from a botched CAS).
+     * callback fires exactly once.
      * Kotlin/Native's new memory model gives the same multi-thread
      * dispatch on the iOS simulator test target.
      */
@@ -231,12 +258,11 @@ class RpcEngineTest {
     }
 
     /**
-     * Exercises the CAS loop in `partialResults.update` specifically.
+     * Exercises partial accumulation under contention specifically.
      * Many message ids each receive a sequence of partials and a final;
-     * all of that happens in parallel across ids on `Dispatchers.Default`,
-     * so CAS retries on the shared map are forced. Each callback must end
-     * up with the exact expected element count — a dropped update would
-     * surface as a short list.
+     * all of that happens in parallel across ids on `Dispatchers.Default`.
+     * Each callback must end up with the exact expected element count — a
+     * dropped update would surface as a short list.
      */
     @Test
     fun concurrentPartialAccumulationProducesCorrectMergedResult() = runBlocking {
@@ -246,9 +272,10 @@ class RpcEngineTest {
 
         // Register everything first, then flood partials + finals in parallel.
         messageIds.forEachIndexed { idx, id ->
-            engine.registerCallback(id) { answer ->
+            engine.registerCallback(id) { result ->
                 receivedSizes[idx] =
-                    answer.json["result"]?.toString()?.let { it.count { c -> c == ',' } + 1 }
+                    result.getOrNull()?.json?.get("result")?.toString()
+                        ?.let { it.count { c -> c == ',' } + 1 }
                         ?: 0
             }
         }
@@ -278,6 +305,33 @@ class RpcEngineTest {
                 size,
                 "Message ${messageIds[idx]} lost partial items under concurrency",
             )
+        }
+    }
+
+    @Test
+    fun concurrentPartialAndRemoveDoesNotLeakPartialsIntoReusedMessageId() = runBlocking {
+        repeat(1_000) {
+            val engine = engine()
+            engine.registerCallback("m1") { /* removed before final */ }
+
+            coroutineScope {
+                val partial = async(Dispatchers.Default) {
+                    engine.handleResponse(
+                        message("""{"message_id": "m1", "partial": true, "result": [1]}"""),
+                    )
+                }
+                val remove = async(Dispatchers.Default) {
+                    engine.removeCallback("m1")
+                }
+                partial.await()
+                remove.await()
+            }
+
+            var received: Answer? = null
+            engine.registerCallback("m1") { received = it.getOrNull() }
+            engine.handleResponse(message("""{"message_id": "m1", "result": [99]}"""))
+
+            assertEquals("[99]", received?.json?.get("result")?.toString())
         }
     }
 

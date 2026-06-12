@@ -546,11 +546,19 @@ class KtorServiceClient(
                                 )
                             }
                             logger.i { "Transport→Reconnecting (attempt=${transportState.attempt})" }
+                            // A dead socket yields no response; fail in-flight requests so
+                            // callers fall through to retry/queue instead of hanging.
+                            rpcEngine.failAllPending(
+                                IllegalStateException("Transport reconnecting"),
+                            )
                         }
 
                         is TransportState.Failed -> {
                             _sessionState.update { SessionState.Disconnected.Error(transportState.error) }
                             logger.i { "Transport→Failed → Disconnected.Error: ${transportState.error.message}" }
+                            rpcEngine.failAllPending(
+                                IllegalStateException("Transport failed: ${transportState.error.message}"),
+                            )
                         }
 
                         TransportState.Disconnected -> {
@@ -558,6 +566,9 @@ class KtorServiceClient(
                                 _sessionState.update { SessionState.Disconnected.ByUser }
                                 logger.i { "Transport→Disconnected → Disconnected.ByUser" }
                             }
+                            rpcEngine.failAllPending(
+                                IllegalStateException("Transport disconnected"),
+                            )
                         }
 
                         TransportState.Connecting -> {} // already handled
@@ -1058,15 +1069,14 @@ class KtorServiceClient(
             val startMs = currentTimeMillis()
             logger.d { "sendRequest[$msgId] cmd=$cmd start" }
 
-            rpcEngine.registerCallback(msgId) { response ->
+            rpcEngine.registerCallback(msgId) { result ->
                 logger.d {
-                    "sendRequest[$msgId] cmd=$cmd resumed in " +
-                        "${currentTimeMillis() - startMs}ms"
+                    "sendRequest[$msgId] cmd=$cmd resumed " +
+                        "(success=${result.isSuccess}) in ${currentTimeMillis() - startMs}ms"
                 }
-                continuation.resume(Result.success(response))
+                continuation.resume(result)
             }
-            // Caller cancellation (e.g. withTimeoutOrNull) must release the
-            // rpcEngine callback, otherwise it leaks for the session lifetime.
+            // Release the callback on cancellation, or it leaks for the session.
             continuation.invokeOnCancellation {
                 logger.i {
                     "sendRequest[$msgId] cmd=$cmd cancelled after " +
@@ -1077,8 +1087,9 @@ class KtorServiceClient(
             launch {
                 val t = transport ?: run {
                     logger.i { "sendRequest[$msgId] cmd=$cmd transport=null at send time" }
-                    rpcEngine.removeCallback(msgId)
-                    continuation.resume(Result.failure(IllegalStateException("Not connected")))
+                    // Atomic take so only one path — this or a late response — resumes.
+                    rpcEngine.takeCallback(msgId)
+                        ?.invoke(Result.failure(IllegalStateException("Not connected")))
                     return@launch
                 }
                 try {
@@ -1088,8 +1099,7 @@ class KtorServiceClient(
                     logger.d { "sendRequest[$msgId] cmd=$cmd sent" }
                 } catch (e: Exception) {
                     logger.e(e) { "sendRequest[$msgId] cmd=$cmd send FAILED" }
-                    rpcEngine.removeCallback(msgId)
-                    continuation.resume(Result.failure(e))
+                    rpcEngine.takeCallback(msgId)?.invoke(Result.failure(e))
                     // Don't trigger full disconnect if transport is already reconnecting —
                     // its own loop will surface the error via TransportState.Failed.
                     val transportState = transport?.state?.value
