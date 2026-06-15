@@ -11,8 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -66,13 +64,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
@@ -130,7 +125,6 @@ import musicassistantclient.composeapp.generated.resources.queue_dsm_enable
 import musicassistantclient.composeapp.generated.resources.queue_no_other_players
 import musicassistantclient.composeapp.generated.resources.queue_transfer
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -563,11 +557,7 @@ private fun ExpandedPlayerPage(
                             inactiveTrackColor = controlTint.inactive(),
                         )
                         val isGroupBound = player.childrenBinds.any { it.isBound }
-                        val volumeForGesture by rememberUpdatedState(currentVolume)
                         val isGroupForGesture by rememberUpdatedState(isGroupBound)
-                        val density = LocalDensity.current
-                        val touchSlopPx = LocalViewConfiguration.current.touchSlop
-                        val thumbHitPx = with(density) { 24.dp.toPx() }
                         Row(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -601,63 +591,29 @@ private fun ExpandedPlayerPage(
                                 },
                                 tint = controlTint,
                             )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .pointerInput(Unit) {
-                                        awaitEachGesture {
-                                            val widthPx = size.width
-                                            if (widthPx == 0) return@awaitEachGesture
-                                            val down = awaitFirstDown(
-                                                requireUnconsumed = false,
-                                                pass = PointerEventPass.Initial,
-                                            )
-                                            val thumbCenter =
-                                                (volumeForGesture / 100f) * widthPx
-                                            // Tap on/near thumb: hand off to the Slider so
-                                            // dragging works normally.
-                                            if (abs(down.position.x - thumbCenter) <= thumbHitPx) {
-                                                return@awaitEachGesture
-                                            }
-                                            down.consume()
-                                            var dragged = false
-                                            while (true) {
-                                                val event = awaitPointerEvent(
-                                                    PointerEventPass.Initial,
-                                                )
-                                                val change = event.changes
-                                                    .firstOrNull { it.id == down.id } ?: break
-                                                if (!dragged &&
-                                                    (change.position - down.position)
-                                                        .getDistance() > touchSlopPx
-                                                ) {
-                                                    dragged = true
-                                                }
-                                                if (change.changedToUp()) {
-                                                    change.consume()
-                                                    if (!dragged) {
-                                                        val action = if (down.position.x < widthPx / 2f) {
-                                                            if (isGroupForGesture) {
-                                                                PlayerAction.GroupVolumeDown
-                                                            } else {
-                                                                PlayerAction.VolumeDown
-                                                            }
-                                                        } else {
-                                                            if (isGroupForGesture) {
-                                                                PlayerAction.GroupVolumeUp
-                                                            } else {
-                                                                PlayerAction.VolumeUp
-                                                            }
-                                                        }
-                                                        playerAction(player, action)
-                                                    }
-                                                    break
-                                                } else {
-                                                    change.consume()
-                                                }
-                                            }
-                                        }
-                                    },
+                            VolumeSliderBox(
+                                modifier = Modifier.weight(1f),
+                                volume = { currentVolume },
+                                onStepDown = {
+                                    playerAction(
+                                        player,
+                                        if (isGroupForGesture) {
+                                            PlayerAction.GroupVolumeDown
+                                        } else {
+                                            PlayerAction.VolumeDown
+                                        },
+                                    )
+                                },
+                                onStepUp = {
+                                    playerAction(
+                                        player,
+                                        if (isGroupForGesture) {
+                                            PlayerAction.GroupVolumeUp
+                                        } else {
+                                            PlayerAction.VolumeUp
+                                        },
+                                    )
+                                },
                             ) {
                                 Slider(
                                     modifier = Modifier.fillMaxWidth(),

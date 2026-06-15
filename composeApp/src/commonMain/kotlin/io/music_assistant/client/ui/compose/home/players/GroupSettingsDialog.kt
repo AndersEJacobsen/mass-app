@@ -139,6 +139,8 @@ private fun GroupSettings(
                                     PlayerAction.GroupVolumeSet(level.toDouble()),
                                 )
                             },
+                            onStepDown = { playerAction(item.player.id, PlayerAction.GroupVolumeDown) },
+                            onStepUp = { playerAction(item.player.id, PlayerAction.GroupVolumeUp) },
                         )
                     }
                 }
@@ -172,6 +174,8 @@ private fun GroupSettings(
                                         PlayerAction.GroupVolumeSet(level.toDouble()),
                                     )
                                 },
+                                onStepDown = { playerAction(item.player.id, PlayerAction.GroupVolumeDown) },
+                                onStepUp = { playerAction(item.player.id, PlayerAction.GroupVolumeUp) },
                             )
                         }
                     } else {
@@ -192,6 +196,8 @@ private fun GroupSettings(
                                         PlayerAction.VolumeSet(level.toDouble()),
                                     )
                                 },
+                                onStepDown = { playerAction(item.player.id, PlayerAction.VolumeDown) },
+                                onStepUp = { playerAction(item.player.id, PlayerAction.VolumeUp) },
                             )
                         }
                     }
@@ -241,6 +247,8 @@ private fun GroupSettings(
                                     PlayerAction.VolumeSet(level.toDouble()),
                                 )
                             },
+                            onStepDown = { playerAction(bindInfo.id, PlayerAction.VolumeDown) },
+                            onStepUp = { playerAction(bindInfo.id, PlayerAction.VolumeUp) },
                         )
                     }
                 }
@@ -379,6 +387,8 @@ private fun VolumeRow(
     enabled: Boolean,
     onMuteToggle: () -> Unit,
     onVolumeSet: (Float) -> Unit,
+    onStepDown: () -> Unit,
+    onStepUp: () -> Unit,
 ) {
     var currentVolume by remember(volume) { mutableStateOf(volume ?: 0f) }
 
@@ -407,31 +417,39 @@ private fun VolumeRow(
                 },
             )
         }
-        Slider(
-            modifier = Modifier.weight(1f).alphaOn(enabled),
-            value = currentVolume,
-            valueRange = 0f..100f,
+        VolumeSliderBox(
+            modifier = Modifier.weight(1f),
             enabled = enabled,
-            onValueChange = { currentVolume = it },
-            onValueChangeFinished = { onVolumeSet(currentVolume) },
-            thumb = {
-                SliderDefaults.Thumb(
-                    interactionSource = remember { MutableInteractionSource() },
-                    thumbSize = DpSize(16.dp, 16.dp),
-                    colors = SliderDefaults.colors()
-                        .copy(thumbColor = MaterialTheme.colorScheme.secondary),
-                )
-            },
-            track = { sliderState ->
-                SliderDefaults.Track(
-                    sliderState = sliderState,
-                    thumbTrackGapSize = 0.dp,
-                    trackInsideCornerSize = 0.dp,
-                    drawStopIndicator = null,
-                    modifier = Modifier.height(4.dp),
-                )
-            },
-        )
+            volume = { currentVolume },
+            onStepDown = onStepDown,
+            onStepUp = onStepUp,
+        ) {
+            Slider(
+                modifier = Modifier.fillMaxWidth().alphaOn(enabled),
+                value = currentVolume,
+                valueRange = 0f..100f,
+                enabled = enabled,
+                onValueChange = { currentVolume = it },
+                onValueChangeFinished = { onVolumeSet(currentVolume) },
+                thumb = {
+                    SliderDefaults.Thumb(
+                        interactionSource = remember { MutableInteractionSource() },
+                        thumbSize = DpSize(16.dp, 16.dp),
+                        colors = SliderDefaults.colors()
+                            .copy(thumbColor = MaterialTheme.colorScheme.secondary),
+                    )
+                },
+                track = { sliderState ->
+                    SliderDefaults.Track(
+                        sliderState = sliderState,
+                        thumbTrackGapSize = 0.dp,
+                        trackInsideCornerSize = 0.dp,
+                        drawStopIndicator = null,
+                        modifier = Modifier.height(4.dp),
+                    )
+                },
+            )
+        }
         VolumeValue(
             modifier = Modifier.alphaOn(enabled),
             volume = currentVolume.roundToInt(),
