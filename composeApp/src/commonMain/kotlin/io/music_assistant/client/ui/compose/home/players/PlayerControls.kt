@@ -111,11 +111,11 @@ fun PlayerControls(
             ) { playerAction(playerData, PlayerAction.Previous) }
         }
 
-        if (playerData.pendingPlay && player.isPlaying) {
+        if (playerData.pendingPlay && !player.isPlaying) {
             IconButton(
                 modifier = Modifier
                     .size(mainButtonSize),
-                onClick = { playerAction(playerData, PlayerAction.TogglePlayPause) },
+                onClick = { playerAction(playerData, PlayerAction.Pause) },
                 enabled = playerEnabled && buttonsEnabled,
             ) {
                 CircularProgressIndicator(

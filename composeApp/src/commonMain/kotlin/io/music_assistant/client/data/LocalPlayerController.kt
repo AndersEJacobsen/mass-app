@@ -75,6 +75,7 @@ class LocalPlayerController(
     private val mediaPlayerController: MediaPlayerController,
     private val sendspinClientFactory: SendspinClientFactory,
     private val playerRequestFactory: PlayerRequestFactory,
+    private val positionTracker: PlayerPositionTracker,
 ) : CoroutineScope {
     private val log = Logger.withTag("LocalPlayerCtrl")
 
@@ -82,6 +83,9 @@ class LocalPlayerController(
     override val coroutineContext: CoroutineContext = supervisorJob + Dispatchers.IO
 
     private val _localPlayerData = MutableStateFlow<PlayerData?>(null)
+
+    // Backstop that clears a stuck resume spinner if the server never confirms play.
+    private var pendingPlayTimeoutJob: Job? = null
 
     // Exposed view applies [withNowPlayingFallback] so the now-playing surfaces (AA /
     // notification / phone card, all of which read `player.currentMedia`) show the queued
@@ -154,30 +158,63 @@ class LocalPlayerController(
 
     // --- Optimistic UI updates ---
 
+    /** Backstop for a play request that never gets a positive server confirmation. */
+    private fun armPendingPlayTimeout() {
+        pendingPlayTimeoutJob?.cancel()
+        pendingPlayTimeoutJob = launch {
+            delay(PENDING_PLAY_TIMEOUT_MS)
+            _localPlayerData.update { current ->
+                if (current?.pendingPlay == true && current.player.isPlaying.not()) {
+                    log.w { "Pending play timed out without server confirmation; clearing spinner" }
+                    current.copy(pendingPlay = false)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
+    private fun cancelPendingPlayTimeout() {
+        pendingPlayTimeoutJob?.cancel()
+        pendingPlayTimeoutJob = null
+    }
+
     private fun applyOptimisticUpdate(data: PlayerData, action: PlayerAction) {
         when (action) {
             PlayerAction.TogglePlayPause -> {
                 val wasPlaying = data.player.isPlaying
-                if (wasPlaying) mediaPlayerController.pauseSink() else mediaPlayerController.resumeSink()
-                _localPlayerData.update { current ->
-                    current?.copy(
-                        player = current.player.copy(isPlaying = !wasPlaying),
-                        pendingPlay = !wasPlaying,
-                    )
+                if (wasPlaying) {
+                    cancelPendingPlayTimeout()
+                    mediaPlayerController.pauseSink()
+                    _localPlayerData.update { current ->
+                        current?.copy(
+                            player = current.player.copy(isPlaying = false),
+                            pendingPlay = false,
+                        )
+                    }
+                } else {
+                    if (!apiClient.isReadyForCommands.value) {
+                        log.i { "Suppressing pending local play while command transport is not ready" }
+                        return
+                    }
+                    mediaPlayerController.resumeSink()
+                    _localPlayerData.update { current -> current?.copy(pendingPlay = true) }
+                    armPendingPlayTimeout()
                 }
             }
 
             PlayerAction.Play -> {
-                mediaPlayerController.resumeSink()
-                _localPlayerData.update { current ->
-                    current?.copy(
-                        player = current.player.copy(isPlaying = true),
-                        pendingPlay = true,
-                    )
+                if (!apiClient.isReadyForCommands.value) {
+                    log.i { "Suppressing pending local play while command transport is not ready" }
+                    return
                 }
+                mediaPlayerController.resumeSink()
+                _localPlayerData.update { current -> current?.copy(pendingPlay = true) }
+                armPendingPlayTimeout()
             }
 
             PlayerAction.Pause -> {
+                cancelPendingPlayTimeout()
                 mediaPlayerController.pauseSink()
                 _localPlayerData.update { current ->
                     current?.copy(
@@ -205,12 +242,33 @@ class LocalPlayerController(
             }
 
             is PlayerAction.SeekTo -> {
-                // Optimistic anchor jump so the slider doesn't snap back to the pre-seek
-                // position while waiting for the server's QueueTimeUpdatedEvent to confirm.
+                // Freeze until Sendspin confirms audio, not merely until the server echoes the seek.
                 updateOptimisticQueueInfo { it.copy(elapsedTime = action.position.toDouble()) }
+                data.queueInfo?.id?.let { queueId ->
+                    positionTracker.setOptimisticSeek(
+                        queueId = queueId,
+                        elapsedSec = action.position.toDouble(),
+                        durationSec = data.queueInfo.currentItem?.track?.duration,
+                        speed = data.queueInfo.playbackSpeed,
+                    )
+                }
             }
 
-            // Next/Previous: no optimistic UI change (we don't know the next track)
+            PlayerAction.Next,
+            PlayerAction.Previous,
+            -> {
+                // Queue events for the next track can arrive before its audio; keep the
+                // boundary frozen until Sendspin confirms the new stream.
+                data.queueInfo?.id?.let { queueId ->
+                    positionTracker.setOptimisticTrackChange(
+                        queueId = queueId,
+                        elapsedSec = 0.0,
+                        durationSec = data.queueInfo.currentItem?.track?.duration,
+                        speed = data.queueInfo.playbackSpeed,
+                    )
+                }
+            }
+
             else -> {}
         }
     }
@@ -246,13 +304,11 @@ class LocalPlayerController(
     // --- Server event reconciliation ---
 
     fun onServerPlayerUpdate(player: Player) {
+        if (player.isPlaying) cancelPendingPlayTimeout()
         _localPlayerData.update { current ->
-            current?.copy(
-                player = player,
-                pendingPlay = if (player.isPlaying) false else current.pendingPlay,
-            ) ?: run {
+            if (current == null) {
                 if (!settings.sendspinEnabled.value) return@update null
-                PlayerData(
+                return@update PlayerData(
                     player = player,
                     queue = DataState.NoData(),
                     parentBind = null,
@@ -260,6 +316,19 @@ class LocalPlayerController(
                     isLocal = true,
                 )
             }
+            // Mask transient server pauses during a frozen handoff; real local pauses
+            // already flipped current.player.isPlaying before this reconciliation runs.
+            val queueId = current.queueInfo?.id
+            val maskHandoffPause = !player.isPlaying &&
+                current.player.isPlaying &&
+                queueId != null &&
+                positionTracker.isFrozenUntilConfirmed(queueId)
+            val resolvedPlayer = if (maskHandoffPause) player.copy(isPlaying = true) else player
+            current.copy(
+                player = resolvedPlayer,
+                // Do not let stale not-playing echoes clear a pending resume.
+                pendingPlay = if (player.isPlaying) false else current.pendingPlay,
+            )
         }
     }
 
@@ -513,6 +582,10 @@ class LocalPlayerController(
                         sendspinClientFactory.getOrCreatePipeline().first.onNetworkDisconnected()
                     }
 
+                    is SendspinState.Synchronized -> {
+                        localPlayerData.value?.queueInfo?.id?.let(positionTracker::confirmPlaying)
+                    }
+
                     is SendspinState.Reconnecting -> Unit
                     else -> Unit
                 }
@@ -661,5 +734,8 @@ class LocalPlayerController(
 
         /** Optimistic-bump offset; safely below any realistic server-confirmation RTT. */
         const val OPTIMISTIC_BUMP_EPSILON_S = 0.0001
+
+        /** Backstop for play requests that neither confirm nor fail. */
+        private const val PENDING_PLAY_TIMEOUT_MS = 10_000L
     }
 }

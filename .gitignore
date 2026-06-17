@@ -71,3 +71,6 @@ iosApp/Frameworks/
 
 # Google Play developer-verification token (per-account, do not commit)
 androidApp/src/selfSignedRelease/assets/adi-registration.properties
+
+# Logs and other junk files
+tmp/

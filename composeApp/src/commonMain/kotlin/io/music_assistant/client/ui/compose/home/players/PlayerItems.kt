@@ -29,6 +29,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +79,8 @@ import musicassistantclient.composeapp.generated.resources.players_nothing
 import musicassistantclient.composeapp.generated.resources.queue_cannot_play
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.DurationUnit
+
+private const val SEEK_STICK_EPSILON_SECONDS = 0.5f
 
 @Composable
 fun CompactPlayerItem(
@@ -332,11 +335,18 @@ fun FullPlayerItem(
             ?: item.queueInfo?.elapsedTime?.toFloat()
             ?: 0f
 
-        // Track user drag state separately
+        // Latch the released seek until the tracker publishes its frozen anchor.
         var userDragPosition by remember { mutableStateOf<Float?>(null) }
+        var releasedSeekPosition by remember { mutableStateOf<Float?>(null) }
 
-        // Use user drag position if dragging, otherwise use calculated position
-        val sliderPosition = userDragPosition ?: displayPosition
+        LaunchedEffect(displayPosition, releasedSeekPosition) {
+            val released = releasedSeekPosition ?: return@LaunchedEffect
+            if (kotlin.math.abs(displayPosition - released) < SEEK_STICK_EPSILON_SECONDS) {
+                releasedSeekPosition = null
+            }
+        }
+
+        val sliderPosition = userDragPosition ?: releasedSeekPosition ?: displayPosition
 
         val progressSliderColors = SliderDefaults.colors().copy(
             thumbColor = controlTint,
@@ -355,7 +365,10 @@ fun FullPlayerItem(
                 },
                 onValueChangeFinished = {
                     userDragPosition?.let { seekPos ->
-                        playerAction(item, PlayerAction.SeekTo(seekPos.toLong()))
+                        // Match the server/tracker whole-second seek target to avoid thumb snapback.
+                        val seekSeconds = seekPos.toLong()
+                        releasedSeekPosition = seekSeconds.toFloat()
+                        playerAction(item, PlayerAction.SeekTo(seekSeconds))
                         userDragPosition = null  // Clear drag state
                     }
                 },

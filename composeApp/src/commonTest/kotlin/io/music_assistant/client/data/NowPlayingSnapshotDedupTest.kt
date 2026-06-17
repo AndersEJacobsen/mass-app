@@ -85,6 +85,15 @@ class NowPlayingSnapshotDedupTest {
     }
 
     @Test
+    fun frozenStateChangeEmits() {
+        // Frozen optimistic seeks use the same elapsed anchor but a different
+        // playback rate for iOS Now Playing, so the dict must be rewritten.
+        assertFalse(
+            NowPlayingSnapshot.sameDictWriteWouldBe(sample, sample.copy(isPositionFrozen = true)),
+        )
+    }
+
+    @Test
     fun subSecondElapsedDriftDedupes() {
         // Position-tracker tick (500 ms) plus dispatch jitter — well under the
         // anchor epsilon. iOS's own interpolator covers this.

@@ -298,6 +298,17 @@ class NowPlayingManager {
 
     // MARK: - Private
 
+    private func applyRemoteSeekPosition(_ position: TimeInterval) {
+        DispatchQueue.main.async {
+            var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+            let duration = (info[MPMediaItemPropertyPlaybackDuration] as? Double) ?? .greatestFiniteMagnitude
+            info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = max(0, min(position, duration))
+            // Stop iOS interpolation immediately; KMP will publish the confirmed rate.
+            info[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        }
+    }
+
     private func setupRemoteCommands() {
         let commandCenter = MPRemoteCommandCenter.shared()
         logDebug("Setting up remote commands (once)")
@@ -321,7 +332,12 @@ class NowPlayingManager {
         commandCenter.changePlaybackPositionCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self?.commandHandler?("seek:\(positionEvent.positionTime)")
+            // Floor to the same whole-second target KMP freezes at; otherwise the
+            // lock-screen thumb can correct backward when the KMP snapshot lands.
+            let seekPosition = positionEvent.positionTime.rounded(.down)
+            self?.logInfo("Remote seek command received: \(seekPosition)")
+            self?.applyRemoteSeekPosition(seekPosition)
+            self?.commandHandler?("seek:\(seekPosition)")
             return .success
         }
 

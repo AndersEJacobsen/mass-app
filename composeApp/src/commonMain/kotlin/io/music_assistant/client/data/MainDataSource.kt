@@ -289,14 +289,6 @@ class MainDataSource(
                         value + queueInfo
                     }
                 }
-                queueInfo.elapsedTime?.let {
-                    positionTracker.setAnchor(
-                        queueId = queueInfo.id,
-                        elapsedSec = it,
-                        durationSec = queueInfo.currentItem?.track?.duration,
-                        speed = queueInfo.playbackSpeed,
-                    )
-                }
             }
         }
 
@@ -696,6 +688,7 @@ class MainDataSource(
                                 positionTracker.effectiveSec(it)
                             } ?: pd.queueInfo.elapsedTime,
                             isPlaying = pd.player.isPlaying,
+                            isPositionFrozen = positionTracker.isFrozenUntilConfirmed(pd.queueInfo.id),
                         )
                     }
                 }
@@ -710,7 +703,7 @@ class MainDataSource(
                             artworkUrl = snapshot.artworkUrl,
                             duration = snapshot.duration,
                             elapsedTime = snapshot.elapsedTime,
-                            playbackRate = if (snapshot.isPlaying) 1.0 else 0.0,
+                            playbackRate = if (snapshot.isPlaying && !snapshot.isPositionFrozen) 1.0 else 0.0,
                         )
                     }
                 }
@@ -744,6 +737,7 @@ class MainDataSource(
             val duration: Double?,
             val elapsedTime: Double?,
             val isPlaying: Boolean,
+            val isPositionFrozen: Boolean = false,
         ) : NowPlayingSnapshot
 
         companion object {
@@ -778,6 +772,7 @@ class MainDataSource(
                 if (a.artworkUrl != b.artworkUrl) return false
                 if (a.duration != b.duration) return false
                 if (a.isPlaying != b.isPlaying) return false
+                if (a.isPositionFrozen != b.isPositionFrozen) return false
                 val ae = a.elapsedTime
                 val be = b.elapsedTime
                 return when {
