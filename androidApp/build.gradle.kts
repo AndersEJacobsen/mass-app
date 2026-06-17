@@ -53,12 +53,6 @@ android {
             )
         }
 
-        create("selfSignedDebug") {
-            isDebuggable = true
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("selfSigned")
-        }
-
         create("selfSignedRelease") {
             isDebuggable = false
             isMinifyEnabled = true
@@ -79,10 +73,10 @@ android {
                 it.contains("SelfSignedRelease", ignoreCase = true)
             }
             reset()
-            include("arm64-v8a", "armeabi-v7a")
-            isUniversalApk = true
+            include("arm64-v8a")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
