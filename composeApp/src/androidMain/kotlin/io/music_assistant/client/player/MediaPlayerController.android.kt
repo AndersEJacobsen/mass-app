@@ -70,19 +70,24 @@ actual class MediaPlayerController actual constructor(platformContext: PlatformC
     // deliver AUDIOFOCUS_LOSS_TRANSIENT cleanly on incoming calls. OnModeChangedListener
     // (API 31+) fires on MODE_IN_CALL / MODE_IN_COMMUNICATION transitions and needs no
     // runtime permission, so we use it as a redundant signal.
-    @RequiresApi(Build.VERSION_CODES.S)
-    private val modeChangedListener = AudioManager.OnModeChangedListener { mode ->
-        val inCall = mode == AudioManager.MODE_IN_CALL ||
-            mode == AudioManager.MODE_IN_COMMUNICATION
-        if (inCall && shouldPlayAudio) {
-            logger.i { "Telephony mode=$mode — pausing server playback (focus backup)" }
-            shouldPlayAudio = false
-            pausedByFocusLoss = true
-            audioTrack?.pause()
-            onRemoteCommand?.invoke("pause")
+    // Lazy so the API 31 OnModeChangedListener type is only referenced on API >= 31.
+    // An eager initializer runs in the constructor on every API level and throws
+    // NoClassDefFoundError on Android < 12, even though registration is SDK-guarded.
+    @get:RequiresApi(Build.VERSION_CODES.S)
+    private val modeChangedListener by lazy {
+        AudioManager.OnModeChangedListener { mode ->
+            val inCall = mode == AudioManager.MODE_IN_CALL ||
+                mode == AudioManager.MODE_IN_COMMUNICATION
+            if (inCall && shouldPlayAudio) {
+                logger.i { "Telephony mode=$mode — pausing server playback (focus backup)" }
+                shouldPlayAudio = false
+                pausedByFocusLoss = true
+                audioTrack?.pause()
+                onRemoteCommand?.invoke("pause")
+            }
+            // Resume is driven by AUDIOFOCUS_GAIN only — mode can return to NORMAL before
+            // focus is restored, and we only auto-resume what we paused.
         }
-        // Resume is driven by AUDIOFOCUS_GAIN only — mode can return to NORMAL before
-        // focus is restored, and we only auto-resume what we paused.
     }
     private var isModeChangedListenerRegistered = false
 
