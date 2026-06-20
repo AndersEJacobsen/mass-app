@@ -66,7 +66,9 @@ subprojects {
         val kotlinExtension = extensions.findByName("kotlin")
         if (kotlinExtension is org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension) {
             kotlinExtension.sourceSets.forEach { sourceSet ->
-                sourceSet.kotlin.srcDirs.forEach { sourceDirs.add(it) }
+                sourceSet.kotlin.srcDirs
+                    .filterNot { it.toPath().startsWith(layout.buildDirectory.get().asFile.toPath()) }
+                    .forEach { sourceDirs.add(it) }
             }
         }
         // Android-style fallback: pick up src/{main,test,debug,release}/{kotlin,java}.
@@ -85,9 +87,62 @@ subprojects {
     }
 }
 
+val checkTestNames by tasks.registering {
+    group = "verification"
+    description = "Fails when backtick-named Kotlin @Test functions contain characters rejected by Kotlin/Native."
+
+    val kotlinFiles = fileTree(rootDir) {
+        include("**/src/commonTest/**/*.kt", "**/src/iosTest/**/*.kt", "**/src/iosArm64Test/**/*.kt", "**/src/iosSimulatorArm64Test/**/*.kt")
+        exclude("**/build/**", "**/generated/**")
+    }
+    inputs.files(kotlinFiles)
+
+    doLast {
+        val testAnnotationPattern = Regex("""@(?:kotlin\.test\.)?Test\b""")
+        val backtickFunctionPattern = Regex("""fun\s+`([^`]*)`""")
+        // Kotlin/Native's NativeIdentifierChecker rejects these characters in declaration names.
+        val kotlinNativeIllegalNameChars = setOf('.', ';', ',', '(', ')', '[', ']', '{', '}', '/', '<', '>', ':', '\\', '$', '&', '~', '*', '?', '#', '|', '§', '%', '@')
+        val violations = kotlinFiles.files.flatMap { file ->
+            val lines = file.readLines()
+            lines.mapIndexedNotNull { index, line ->
+                val functionName = backtickFunctionPattern.find(line)?.groupValues?.get(1)
+                val illegalChars = functionName
+                    ?.filter { it in kotlinNativeIllegalNameChars }
+                    ?.toSet()
+                    .orEmpty()
+                if (functionName == null || illegalChars.isEmpty()) {
+                    null
+                } else {
+                    val previousNonBlankLine = lines
+                        .take(index)
+                        .asReversed()
+                        .firstOrNull { it.isNotBlank() }
+                    if (previousNonBlankLine != null && testAnnotationPattern.containsMatchIn(previousNonBlankLine)) {
+                        "${file.relativeTo(rootDir)}:${index + 1}: test name contains Kotlin/Native-illegal character(s) " +
+                            illegalChars.joinToString(prefix = "\"", postfix = "\"", separator = "\", \"") +
+                            ": `$functionName`"
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "Kotlin @Test names must not contain characters rejected by Kotlin/Native. " +
+                    "The iOS compiler reports these as: Name contains illegal characters. " +
+                    "Rewrite punctuation as words like 'and', or split the test.\n" +
+                    violations.joinToString("\n"),
+            )
+        }
+    }
+}
+
 // Convenience aggregator: ./gradlew detektAll
 tasks.register("detektAll") {
     group = "verification"
-    description = "Runs detekt on every subproject."
+    description = "Runs detekt on every subproject and project-specific lint checks."
+    dependsOn(checkTestNames)
     dependsOn(subprojects.map { it.tasks.named("detekt") })
 }

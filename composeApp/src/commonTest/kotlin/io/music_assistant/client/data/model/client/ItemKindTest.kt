@@ -44,7 +44,7 @@ class ItemKindTest {
     }
 
     @Test
-    fun `podcast episode appears only in home, browse and search`() {
+    fun `podcast episode appears only in home browse and search`() {
         assertEquals(
             setOf(ClickContext.HOME, ClickContext.BROWSE, ClickContext.SEARCH),
             ClickContext.entries.filter { ItemKind.PODCAST_EPISODE.appearsIn(it) }.toSet(),

@@ -61,6 +61,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # The Xcode app scheme has no test target, so `xcodebuild build` only proves
+      # the app compiles. Run the KMP iOS test executable explicitly to catch
+      # commonTest/iosTest failures, including Kotlin/Native-only test-name errors.
+      - name: Run iOS Kotlin/Native tests
+        run: ./gradlew :composeApp:iosSimulatorArm64Test
+
       # Simulator destination + signing disabled gives us a compile-only pass:
       # Kotlin framework compilation runs via the Xcode build phase script, and
       # Swift compiles against the real iOS 26 SDK. No provisioning profile or
