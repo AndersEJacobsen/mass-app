@@ -48,8 +48,6 @@ import io.music_assistant.client.data.model.client.items.Genre
 import io.music_assistant.client.data.model.client.items.Playlist
 import io.music_assistant.client.data.model.client.items.Podcast
 import io.music_assistant.client.data.model.client.items.RecommendationFolder
-import io.music_assistant.client.settings.SettingsRepository
-import io.music_assistant.client.ui.compose.common.DataState
 import io.music_assistant.client.ui.compose.common.ToastDuration
 import io.music_assistant.client.ui.compose.common.ToastHost
 import io.music_assistant.client.ui.compose.common.providers.ProviderIcon
@@ -121,8 +119,6 @@ fun MainNavigationRoot(
         }
     }
 
-    val recommendationsState =
-        homeScreenViewModel.recommendationsState.collectAsStateWithLifecycle()
     val playersState by homeScreenViewModel.playersState.collectAsStateWithLifecycle()
     // Single pager state used across all views
     val data = playersState as? HomeScreenViewModel.PlayersState.Data
@@ -148,10 +144,6 @@ fun MainNavigationRoot(
         }
     }
 
-    val connectionState = recommendationsState.value.connectionState
-    val dataState = recommendationsState.value.recommendations
-    val homeRowsConfig = recommendationsState.value.homeRowsConfig
-
     var playerExpanded by remember { mutableStateOf(false) }
 
     val onExpandPlayer = remember { { expanded: Boolean -> playerExpanded = expanded } }
@@ -169,6 +161,7 @@ fun MainNavigationRoot(
     // pre-auth MainNavigationRoot instance — torn down during the cold-launch
     // Main→Settings→Main churn — never consumes it; only the authenticated
     // instance that stays on screen applies and clears it.
+    val connectionState by homeScreenViewModel.connectionState.collectAsStateWithLifecycle()
     val pendingDeepLink by deepLinkBus.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingDeepLink, connectionState) {
         val dest = pendingDeepLink ?: return@LaunchedEffect
@@ -288,9 +281,7 @@ fun MainNavigationRoot(
                             entries = multiBackStack.toEntries(
                                 mainNavEntryProvider(
                                     floatingBarContentPadding,
-                                    connectionState,
-                                    dataState,
-                                    homeRowsConfig,
+                                    connectionState is SessionState.Connected,
                                     multiBackStack,
                                     homeScreenViewModel,
                                     actionsViewModel,
@@ -322,9 +313,7 @@ fun MainNavigationRoot(
 @Composable
 private fun mainNavEntryProvider(
     contentPadding: PaddingValues,
-    connectionState: SessionState,
-    dataState: DataState<List<RecommendationFolder>>,
-    homeRowsConfig: List<SettingsRepository.HomeRowPref>,
+    isConnected: Boolean,
     multiBackStack: MultiBackStack<NavKey>,
     homeScreenViewModel: HomeScreenViewModel,
     actionsViewModel: ActionsViewModel,
@@ -340,8 +329,7 @@ private fun mainNavEntryProvider(
             HomeScreen(
                 homeScreenViewModel,
                 contentPadding = contentPadding,
-                connectionState = connectionState,
-                dataState = dataState,
+                isConnected = isConnected,
                 onNavigateClick = { item ->
                     when (item) {
                         is Artist,
@@ -370,7 +358,6 @@ private fun mainNavEntryProvider(
                     actionsViewModel.getProviderIcon(provider)
                         ?.let { ProviderIcon(modifier, it) }
                 },
-                homeRowsConfig = homeRowsConfig,
                 actionsViewModel = actionsViewModel,
                 state = homeScreenState,
             )

@@ -8,6 +8,7 @@ import io.music_assistant.client.support.Qualifiers
 import io.music_assistant.client.support.ServerMediaItemFixtures
 import io.music_assistant.client.support.launchLoggedInApp
 import io.music_assistant.client.support.pages.assertMediaDisplayed
+import io.music_assistant.client.support.pages.assertMediaNotDisplayed
 import io.music_assistant.client.support.rules.createTestRuleChain
 import org.junit.Rule
 import org.junit.Test
@@ -27,7 +28,7 @@ class HomeTest {
     val serviceClient: FakeServiceClient by inject(ServiceClient::class.java)
 
     @Test
-    fun `can refresh home`() {
+    fun `can refresh home recommendations`() {
         val album1 = ServerMediaItemFixtures.album()
         serviceClient.addToLibrary(album1)
 
@@ -39,5 +40,34 @@ class HomeTest {
 
         homePage.refresh()
             .assertMediaDisplayed(album2.name)
+    }
+
+    @Test
+    fun `can refresh home shortcuts`() {
+        val album = ServerMediaItemFixtures.album()
+        serviceClient.addToLibrary(album)
+
+        val homePage = launchLoggedInApp(composeTestRule, serviceClient)
+
+        serviceClient.addShortcut(album)
+
+        homePage.refresh()
+            .assertShortcutDisplayed(album)
+    }
+
+    @Test
+    fun `shows error if data can't be loaded and can recover with refresh`() {
+        val album = ServerMediaItemFixtures.album()
+        serviceClient.addToLibrary(album)
+        val homePage = launchLoggedInApp(composeTestRule, serviceClient)
+
+        serviceClient.setRequestErrors(true)
+        homePage.refresh()
+            .assertErrorLoadingData()
+            .assertMediaNotDisplayed(album.name)
+
+        serviceClient.setRequestErrors(false)
+        homePage.refresh()
+            .assertMediaDisplayed(album.name)
     }
 }

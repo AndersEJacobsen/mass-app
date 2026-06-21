@@ -7,7 +7,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.music_assistant.client.data.model.server.ServerMediaItem
 import io.music_assistant.client.support.get
+import io.music_assistant.client.ui.compose.home.HomeScreenSemantics
 import musicassistantclient.composeapp.generated.resources.Res
+import musicassistantclient.composeapp.generated.resources.library_error
 import musicassistantclient.composeapp.generated.resources.nav_home
 import musicassistantclient.composeapp.generated.resources.nav_library
 import musicassistantclient.composeapp.generated.resources.nav_search
@@ -33,6 +35,29 @@ class HomePage(composeTestRule: ComposeTestRule) : ComposePage(composeTestRule) 
 
     fun refresh(): HomePage {
         composeTestRule.onNodeWithContentDescription("Refresh").performClick()
+        return this
+    }
+
+    fun clickOnShortcut(item: ServerMediaItem): ItemPage {
+        return clickOnMedia(
+            item,
+            Res.string.nav_home.get(),
+            withinTag = HomeScreenSemantics.SHORTCUTS_ROW_TAG,
+        )
+    }
+
+    fun playShortcut(item: ServerMediaItem): HomePage {
+        playMedia(item, withinTag = HomeScreenSemantics.SHORTCUTS_ROW_TAG)
+        return this
+    }
+
+    fun assertShortcutDisplayed(item: ServerMediaItem): HomePage {
+        assertMediaDisplayed(item.name, withinTag = HomeScreenSemantics.SHORTCUTS_ROW_TAG)
+        return this
+    }
+
+    fun assertErrorLoadingData(): HomePage {
+        composeTestRule.onNodeWithText(Res.string.library_error.get()).assertIsDisplayed()
         return this
     }
 }

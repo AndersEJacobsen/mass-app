@@ -17,6 +17,8 @@ import io.music_assistant.client.data.model.server.ServerPlayer
 import io.music_assistant.client.data.model.server.ServerPlayerMedia
 import io.music_assistant.client.data.model.server.ServerQueue
 import io.music_assistant.client.data.model.server.ServerQueueItem
+import io.music_assistant.client.data.model.server.ServerUser
+import io.music_assistant.client.data.model.server.ServerUserPreferences
 import io.music_assistant.client.data.model.server.User
 import io.music_assistant.client.data.model.server.events.Event
 import io.music_assistant.client.data.model.server.events.PlayerUpdatedEvent
@@ -43,6 +45,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 
 class FakeServiceClient(private val settingsRepository: SettingsRepository) : ServiceClient {
+    private var legacyVersion: LegacyVersion? = null
+    private var requestErrors: Boolean = false
+
     private val uniqueIdGenerator = UniqueIdGenerator()
 
     private val players = mutableListOf<ServerPlayer>()
@@ -90,6 +95,7 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
         }
 
     private val playlistItems = mutableMapOf<String, List<String>>()
+    private val shortcuts = mutableListOf<String>()
 
     val username = "user"
     val password = "password"
@@ -102,6 +108,10 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
     override val isReadyForCommands: StateFlow<Boolean> = _isReadyForCommands
 
     override suspend fun sendRequest(request: Request): Result<Answer> {
+        if (requestErrors) {
+            return Result.failure(Exception())
+        }
+
         return when (request.command) {
             APICommands.PROVIDERS_MANIFESTS -> {
                 Result.success(
@@ -110,6 +120,24 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
                         result = emptyList<ProviderManifest>(),
                     ),
                 )
+            }
+
+            APICommands.AUTH_ME -> {
+                if (legacyVersion == LegacyVersion.V2_8) {
+                    Result.success(
+                        answer(
+                            request = request,
+                            result = emptyMap<String, String>(),
+                        ),
+                    )
+                } else {
+                    Result.success(
+                        answer(
+                            request = request,
+                            result = ServerUser(preferences = ServerUserPreferences(shortcuts)),
+                        ),
+                    )
+                }
             }
 
             APICommands.AUTH_PROVIDERS -> {
@@ -125,6 +153,11 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
                         ),
                     ),
                 )
+            }
+
+            APICommands.MUSIC_ITEM_BY_URI -> {
+                val item = items.find { it.uri == request.getArg("uri") }!!
+                Result.success(answer(request = request, result = item))
             }
 
             APICommands.MUSIC_RECOMMENDATIONS -> {
@@ -311,9 +344,11 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
 
                             albumTracks.drop(startIndex)
                         }
+
                         MediaType.TRACK -> listOf(item)
                         MediaType.PLAYLIST -> {
-                            val playlistTracks = tracks.filter { playlistItems[item.itemId]!!.contains(it.itemId) }
+                            val playlistTracks =
+                                tracks.filter { playlistItems[item.itemId]!!.contains(it.itemId) }
                             val startIndex = if (startItemId != null) {
                                 playlistTracks.indexOfFirst { it.itemId == startItemId }
                             } else {
@@ -322,6 +357,7 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
 
                             playlistTracks.drop(startIndex)
                         }
+
                         else -> TODO()
                     }
                 } ?: emptyList()
@@ -504,7 +540,12 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
     private val _serverBaseUrl = MutableStateFlow<String?>(null)
     override val serverBaseUrl: StateFlow<String?> = _serverBaseUrl
 
-    override fun resolveImageUrl(path: String, provider: String, isRemotelyAccessible: Boolean, proxyId: String?): String? = null
+    override fun resolveImageUrl(
+        path: String,
+        provider: String,
+        isRemotelyAccessible: Boolean,
+        proxyId: String?,
+    ): String? = null
 
     override fun rebaseServerImageUrl(rawUrl: String): String? = null
 
@@ -586,6 +627,10 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
         this.players.addAll(players)
     }
 
+    fun addShortcut(item: ServerMediaItem) {
+        shortcuts.add(item.uri!!)
+    }
+
     fun getState(playerId: String): PlayerState? {
         val player = players.find { it.playerId == playerId }
         return player?.state
@@ -628,6 +673,18 @@ class FakeServiceClient(private val settingsRepository: SettingsRepository) : Se
 
     fun setPlaylist(playlist: ServerMediaItem, vararg tracks: ServerMediaItem) {
         playlistItems[playlist.itemId] = tracks.map { it.itemId }
+    }
+
+    fun setRequestErrors(reachable: Boolean) {
+        this.requestErrors = reachable
+    }
+
+    fun setLegacyVersion(version: LegacyVersion) {
+        this.legacyVersion = version
+    }
+
+    enum class LegacyVersion {
+        V2_8,
     }
 }
 
