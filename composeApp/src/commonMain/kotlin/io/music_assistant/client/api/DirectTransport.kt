@@ -38,7 +38,7 @@ class DirectTransport(
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         logger.e(throwable) { "Uncaught exception in DirectTransport scope" }
         when (_state.value) {
-            TransportState.Connected -> verifyConnection()
+            TransportState.Connected -> verifyConnection(probeReason = "direct_transport_scope_exception")
             TransportState.Connecting, is TransportState.Reconnecting ->
                 _state.value = TransportState.Failed(
                     Exception("Recovery machinery died: ${throwable.message}", throwable),
@@ -67,6 +67,9 @@ class DirectTransport(
 
     @Volatile
     private var messageCounter = 0L
+
+    private fun Job?.lifecycleLabel(): String =
+        this?.let { "active=${it.isActive},cancelled=${it.isCancelled},completed=${it.isCompleted}" } ?: "none"
 
     override fun connect() {
         connectionJob?.cancel()
@@ -148,7 +151,7 @@ class DirectTransport(
         }
     }
 
-    override fun verifyConnection(timeoutMs: Long) {
+    override fun verifyConnection(timeoutMs: Long, probeReason: String) {
         val s = session ?: return
         val countBefore = messageCounter
         scope.launch {
@@ -156,21 +159,30 @@ class DirectTransport(
                 s.send(Frame.Ping(byteArrayOf()))
                 true
             } catch (e: Exception) {
-                logger.i { "Connection probe failed immediately: ${e.message}" }
+                logger.i {
+                    "Direct connection probe failed immediately: probeReason=$probeReason " +
+                        "state=${_state.value} messageCounterBefore=$countBefore " +
+                        "error=${e.message ?: "no-message"}"
+                }
                 false
             }
 
             if (!sendOk) {
-                initiateReconnect()
+                initiateReconnect("probe_ping_failed:$probeReason")
                 return@launch
             }
 
             delay(timeoutMs)
 
             // If no messages arrived and session unchanged — connection is dead
-            if (messageCounter == countBefore && session === s && _state.value == TransportState.Connected) {
-                logger.i { "No activity within ${timeoutMs}ms after probe — reconnecting" }
-                initiateReconnect()
+            val countAfter = messageCounter
+            if (countAfter == countBefore && session === s && _state.value == TransportState.Connected) {
+                logger.i {
+                    "Direct connection probe timed out: probeReason=$probeReason timeoutMs=$timeoutMs " +
+                        "messageCounterBefore=$countBefore messageCounterAfter=$countAfter " +
+                        "state=${_state.value}"
+                }
+                initiateReconnect("probe_timeout:$probeReason")
             }
         }
     }
@@ -199,7 +211,12 @@ class DirectTransport(
      * Transition to Reconnecting BEFORE nulling the session, so any concurrent
      * sendRequest sees a non-Connected transport state and skips disconnect(Error).
      */
-    private fun initiateReconnect() {
+    private fun initiateReconnect(reason: String) {
+        logger.i {
+            "Direct reconnect initiated: reason=$reason state=${_state.value} " +
+                "connectionJob=${connectionJob.lifecycleLabel()} sessionPresent=${session != null} " +
+                "messageCounter=$messageCounter"
+        }
         _state.value = TransportState.Reconnecting(0)
         connectionJob?.cancel()
         val s = session

@@ -310,7 +310,7 @@ class KtorServiceClient(
         val elapsed = currentTimeMillis() - backgroundedAt
         if (elapsed > STALE_CONNECTION_THRESHOLD_MS && state is SessionState.Connected) {
             logger.i { "External consumer active: probing connection after ${elapsed}ms in background" }
-            transport?.verifyConnection()
+            transport?.verifyConnection(probeReason = "external_consumer_active")
         }
     }
 
@@ -388,7 +388,7 @@ class KtorServiceClient(
         val elapsed = currentTimeMillis() - backgroundedAt
         if (elapsed > STALE_CONNECTION_THRESHOLD_MS && state is SessionState.Connected) {
             logger.i { "App foregrounded: probing connection after ${elapsed}ms in background" }
-            transport?.verifyConnection()
+            transport?.verifyConnection(probeReason = "app_foreground")
         }
     }
 
