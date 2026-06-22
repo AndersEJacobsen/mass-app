@@ -394,6 +394,8 @@ data class Request @OptIn(ExperimentalUuidApi::class) constructor(
             limit: Int = Int.MAX_VALUE,
             offset: Int = 0,
             orderBy: String? = null,
+            hideEmpty: Boolean? = null,
+            mediaType: String? = null,
         ) = Request(
             command = APICommands.MUSIC_GENRES_LIBRARY_ITEMS,
             args = buildJsonObject {
@@ -402,6 +404,8 @@ data class Request @OptIn(ExperimentalUuidApi::class) constructor(
                 put("limit", JsonPrimitive(limit))
                 put("offset", JsonPrimitive(offset))
                 orderBy?.let { put("order_by", JsonPrimitive(it)) }
+                hideEmpty?.let { put("hide_empty", JsonPrimitive(it)) }
+                mediaType?.let { put("media_type", JsonPrimitive(it)) }
             },
         )
 

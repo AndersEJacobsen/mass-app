@@ -63,6 +63,7 @@
   <string name="cd_delete_crash_logs">Delete crash logs</string>
   <string name="cd_favorite">Favorite</string>
   <string name="cd_fully_played">Fully played</string>
+  <string name="cd_genre_filter">Genre filters</string>
   <string name="cd_in_progress">In progress</string>
   <string name="cd_more">More</string>
   <string name="cd_mute">Mute</string>
@@ -103,6 +104,12 @@
   <string name="dsp_presets">Presets</string>
   <string name="dsp_title">DSP settings</string>
   <string name="filter_favorites">Favorites</string>
+  <string name="genre_filter_show">Show genres</string>
+  <string name="genre_filter_empty_default">Default</string>
+  <string name="genre_filter_empty_non_empty">Non-empty only</string>
+  <string name="genre_filter_empty_all">All</string>
+  <string name="genre_filter_media_type">Media type</string>
+  <string name="genre_filter_media_type_all">All</string>
   <string name="home_edit_rows">Edit rows</string>
   <string name="home_save_rows">Save rows</string>
   <string name="home_shortcuts">Shortcuts</string>

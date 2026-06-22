@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
@@ -30,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Plus
 import io.music_assistant.client.data.model.client.ClickContext
+import io.music_assistant.client.data.model.client.GenreEmptyFilter
 import io.music_assistant.client.data.model.client.MediaType
 import io.music_assistant.client.data.model.client.SortConfig
 import io.music_assistant.client.data.model.client.SortOption
@@ -77,6 +80,7 @@ import io.music_assistant.client.ui.compose.nav.TopBarLayout
 import io.music_assistant.client.ui.compose.nav.TwoRowTopAppBar
 import musicassistantclient.composeapp.generated.resources.Res
 import musicassistantclient.composeapp.generated.resources.cd_add_playlist
+import musicassistantclient.composeapp.generated.resources.cd_genre_filter
 import musicassistantclient.composeapp.generated.resources.cd_toggle_view_mode
 import musicassistantclient.composeapp.generated.resources.common_back
 import musicassistantclient.composeapp.generated.resources.common_cancel
@@ -139,6 +143,10 @@ fun ItemListScreen(
                 sortOption = state.sortOption,
                 onlyFavorites = state.onlyFavorites,
                 onToggleFavorites = itemListViewModel::toggleFavorites,
+                emptyFilter = state.emptyFilter,
+                mediaTypeFilter = state.mediaTypeFilter,
+                onEmptyFilterChange = itemListViewModel::setEmptyFilter,
+                onMediaTypeFilterChange = itemListViewModel::setMediaTypeFilter,
             )
         },
     ) {
@@ -187,8 +195,13 @@ private fun ItemListTopBar(
     sortOption: SortOption,
     onlyFavorites: Boolean,
     onToggleFavorites: () -> Unit,
+    emptyFilter: GenreEmptyFilter,
+    mediaTypeFilter: MediaType?,
+    onEmptyFilterChange: (GenreEmptyFilter) -> Unit,
+    onMediaTypeFilterChange: (MediaType?) -> Unit,
 ) {
     var showSearch by remember { mutableStateOf(searchQuery.isNotEmpty()) }
+    var showFilterMenu by remember { mutableStateOf(false) }
 
     Column {
         TwoRowTopAppBar(
@@ -270,6 +283,30 @@ private fun ItemListTopBar(
                 }
             },
             actions = {
+                if (mediaType == MediaType.GENRE && !showSearch) {
+                    val active = emptyFilter != GenreEmptyFilter.DEFAULT || mediaTypeFilter != null
+                    Box {
+                        IconButton(onClick = { showFilterMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = stringResource(Res.string.cd_genre_filter),
+                                tint = if (active) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    LocalContentColor.current
+                                },
+                            )
+                        }
+                        GenreFilterMenu(
+                            expanded = showFilterMenu,
+                            emptyFilter = emptyFilter,
+                            mediaTypeFilter = mediaTypeFilter,
+                            onEmptyFilterChange = onEmptyFilterChange,
+                            onMediaTypeFilterChange = onMediaTypeFilterChange,
+                            onDismiss = { showFilterMenu = false },
+                        )
+                    }
+                }
                 IconButton(
                     onClick = {
                         if (showSearch) {

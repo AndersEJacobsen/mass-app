@@ -6,6 +6,7 @@ import co.touchlab.kermit.Logger
 import io.music_assistant.client.api.Request
 import io.music_assistant.client.api.ServiceClient
 import io.music_assistant.client.data.MainDataSource
+import io.music_assistant.client.data.model.client.GenreEmptyFilter
 import io.music_assistant.client.data.model.client.MediaType
 import io.music_assistant.client.data.model.client.QueueOption
 import io.music_assistant.client.data.model.client.SortConfig
@@ -53,7 +54,9 @@ class ItemListViewModel(
 
     init {
         viewModelScope.launch {
-            _state.map { Triple(it.searchQuery, it.sortOption, it.onlyFavorites) }
+            _state.map {
+                listOf(it.searchQuery, it.sortOption, it.onlyFavorites, it.emptyFilter, it.mediaTypeFilter)
+            }
                 .distinctUntilChanged()
                 .debounce { Timings.INPUT_DEBOUNCE }
                 .collect { loadFirstPage() }
@@ -62,6 +65,19 @@ class ItemListViewModel(
         viewModelScope.launch {
             settingsRepository.viewMode(mediaType).collect { mode ->
                 _state.update { it.copy(viewMode = mode) }
+            }
+        }
+
+        if (mediaType == MediaType.GENRE) {
+            viewModelScope.launch {
+                settingsRepository.genreEmptyFilter().collect { filter ->
+                    _state.update { it.copy(emptyFilter = filter) }
+                }
+            }
+            viewModelScope.launch {
+                settingsRepository.genreMediaTypeFilter().collect { type ->
+                    _state.update { it.copy(mediaTypeFilter = type) }
+                }
             }
         }
 
@@ -128,6 +144,16 @@ class ItemListViewModel(
         }
     }
 
+    // Persistence is the source of truth (like view mode); the settings flow
+    // collector folds the new value back into state and triggers a refetch.
+    fun setEmptyFilter(filter: GenreEmptyFilter) {
+        settingsRepository.setGenreEmptyFilter(filter)
+    }
+
+    fun setMediaTypeFilter(mediaType: MediaType?) {
+        settingsRepository.setGenreMediaTypeFilter(mediaType)
+    }
+
     fun onSearchQueryChanged(query: String) {
         _state.update { it.copy(searchQuery = query) }
     }
@@ -159,6 +185,8 @@ class ItemListViewModel(
                 orderBy,
                 searchQuery,
                 onlyFavorites,
+                currentState.emptyFilter,
+                currentState.mediaTypeFilter,
             )
             val result = mediaItemRepository.fetchMediaItems(request)
 
@@ -190,6 +218,8 @@ class ItemListViewModel(
         orderBy: String,
         searchQuery: String?,
         onlyFavorites: Boolean,
+        emptyFilter: GenreEmptyFilter,
+        mediaTypeFilter: MediaType?,
     ): Request {
         val favorites = onlyFavorites.takeIf { it }
         val request = when (mediaType) {
@@ -255,6 +285,8 @@ class ItemListViewModel(
                 search = searchQuery,
                 orderBy = orderBy,
                 favorite = favorites,
+                hideEmpty = emptyFilter.hideEmpty,
+                mediaType = mediaTypeFilter?.serverValue,
             )
 
             else -> throw IllegalArgumentException("Invalid MediaType for ItemListViewModel!")
@@ -308,6 +340,8 @@ class ItemListViewModel(
                 orderBy,
                 searchQuery,
                 state.value.onlyFavorites,
+                state.value.emptyFilter,
+                state.value.mediaTypeFilter,
             )
             val result = mediaItemRepository.fetchMediaItems(request)
 
@@ -362,5 +396,8 @@ class ItemListViewModel(
         val viewMode: ViewMode = ViewMode.GRID,
         val offset: Int = 0,
         val onlyFavorites: Boolean = false,
+        // Genres-only filters; ignored (and not surfaced) for other media types.
+        val emptyFilter: GenreEmptyFilter = GenreEmptyFilter.DEFAULT,
+        val mediaTypeFilter: MediaType? = null,
     )
 }

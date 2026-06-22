@@ -3,6 +3,7 @@ package io.music_assistant.client.settings
 import com.russhwolf.settings.Settings
 import io.music_assistant.client.api.ConnectionInfo
 import io.music_assistant.client.data.model.client.ClickContext
+import io.music_assistant.client.data.model.client.GenreEmptyFilter
 import io.music_assistant.client.data.model.client.ItemKind
 import io.music_assistant.client.data.model.client.MediaType
 import io.music_assistant.client.data.model.client.SortConfig
@@ -520,6 +521,37 @@ class SettingsRepository(
     fun setViewMode(mediaType: MediaType, mode: ViewMode) {
         settings.putString(viewModeKey(mediaType), mode.name)
         viewModeFlow(mediaType).update { mode }
+    }
+
+    // Genres-only library filters, persisted like view mode. Single keys: the
+    // genres list is one screen, so no per-MediaType map is needed.
+    private val genreEmptyFilterFlow by lazy {
+        val stored = settings.getStringOrNull("genre_empty_filter")
+        val initial = stored?.let { runCatching { GenreEmptyFilter.valueOf(it) }.getOrNull() }
+            ?: GenreEmptyFilter.DEFAULT
+        MutableStateFlow(initial)
+    }
+
+    fun genreEmptyFilter() = genreEmptyFilterFlow.asStateFlow()
+
+    fun setGenreEmptyFilter(filter: GenreEmptyFilter) {
+        settings.putString("genre_empty_filter", filter.name)
+        genreEmptyFilterFlow.update { filter }
+    }
+
+    private val genreMediaTypeFilterFlow by lazy {
+        MutableStateFlow(MediaType.fromServer(settings.getStringOrNull("genre_media_type_filter")))
+    }
+
+    fun genreMediaTypeFilter() = genreMediaTypeFilterFlow.asStateFlow()
+
+    fun setGenreMediaTypeFilter(mediaType: MediaType?) {
+        if (mediaType == null) {
+            settings.remove("genre_media_type_filter")
+        } else {
+            settings.putString("genre_media_type_filter", mediaType.serverValue)
+        }
+        genreMediaTypeFilterFlow.update { mediaType }
     }
 
     fun getSortOption(context: SubItemContext): SortOption {
