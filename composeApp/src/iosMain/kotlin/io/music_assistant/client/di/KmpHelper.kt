@@ -447,13 +447,15 @@ object KmpHelper : KoinComponent {
         val stored = settingsRepository.carTabsConfig.value
             ?: return carTabCategories.map { it.name }
         val parsed = stored.mapNotNull { pref ->
-            if (!pref.enabled) return@mapNotNull null
             runCatching { LibraryCategory.valueOf(pref.name) }.getOrNull()
                 ?.takeIf { it in carTabCategories }
+                ?.let { it to pref.enabled }
         }
-        val present = parsed.toSet()
-        val missing = carTabCategories.filter { it !in present }
-        return (parsed + missing).map { it.name }
+        val present = parsed.map { it.first }.toSet()
+        val missing = carTabCategories.filter { it !in present }.map { it to true }
+        return (parsed + missing)
+            .filter { (_, enabled) -> enabled }
+            .map { (category, _) -> category.name }
     }
 
     // MARK: - Library Actions (Siri)
